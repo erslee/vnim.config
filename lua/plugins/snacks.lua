@@ -17,7 +17,26 @@ return {
 					{ section = "header" },
 					{ icon = " ", title = "Keymaps", section = "keys", indent = 2, padding = 1 },
 					{ icon = " ", title = "Recent Files", section = "recent_files", indent = 2, padding = 1 },
-					{ icon = " ", title = "Projects", section = "projects", indent = 2, padding = 1 },
+					{
+						icon = " ",
+						title = "Projects - sessions",
+						section = "projects",
+						indent = 2,
+						padding = 1,
+						action = function(pwd)
+							vim.fn.chdir(pwd)
+							if not require("session-manager").manage_sessions() then
+								Snacks.explorer()
+							end
+						end,
+					},
+					{
+						icon = " ",
+						title = "Projects",
+						section = "projects",
+						indent = 2,
+						padding = 1,
+					},
 					function()
 						local in_git = Snacks.git.get_root() ~= nil
 						local cmds = {
