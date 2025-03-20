@@ -1,0 +1,8 @@
+return {
+	"frazrepo/vim-rainbow",
+	lazy = false,
+	priority = 1000,
+	config = function()
+		vim.g["rainbow_active"] = 1
+	end,
+}
