@@ -7,6 +7,12 @@ return {
 		---@type snacks.Config
 		opts = {
 			bigfile = { enabled = true },
+			lazygit = {
+				configure = true,
+				gui = {
+					nerdFontsVersion = "3",
+				},
+			},
 			dashboard = {
 				header = true,
 				keys = true,
@@ -111,6 +117,32 @@ return {
 						-- show files ignored by git like node_modules
 						ignored = false,
 					},
+					files = {
+						hidden = true,
+						-- layout = {
+						-- 	preset = "vscode",
+						-- },
+					},
+				},
+				previewers = {
+					diff = {
+						builtin = true, -- use Neovim for previewing diffs (true) or use an external tool (false)
+						cmd = { "delta" }, -- example to show a diff with delta
+					},
+					git = {
+						builtin = true, -- use Neovim for previewing git output (true) or use git (false)
+						args = {}, -- additional arguments passed to the git command. Useful to set pager options usin `-c ...`
+					},
+					git_diff = {
+						previewer = "delta", -- Use delta as the previewer for git diff
+						opts = {
+							diff_algorithm = "histogram", -- Use the histogram algorithm for better diff visualization
+						},
+					},
+				},
+				git_diff = {
+					finder = "git_diff",
+					preview = "delta",
 				},
 			},
 			quickfile = { enabled = true },

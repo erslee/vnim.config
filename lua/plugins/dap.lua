@@ -12,7 +12,16 @@ return {
 	{ "nvim-neotest/nvim-nio" },
 	{ "rcarriga/nvim-dap-ui" },
 	{
+		"jay-babu/mason-nvim-dap.nvim",
+		config = function()
+			require("mason-nvim-dap").setup({
+				ensure_installed = { "python", "typescript", "js@v1.76.1" },
+			})
+		end,
+	},
+	{
 		"mfussenegger/nvim-dap",
+		commit = "7ff6936010b7222fea2caea0f67ed77f1b7c60dd",
 		config = function()
 			local dap = require("dap")
 			require("dapui").setup()

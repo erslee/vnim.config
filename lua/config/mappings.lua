@@ -6,16 +6,18 @@ vim.keymap.set("t", "<c-j>", "<C-\\><C-n><C-w>j", { noremap = true, silent = tru
 vim.keymap.set("t", "<c-k>", "<C-\\><C-n><C-w>k", { noremap = true, silent = true })
 vim.keymap.set("t", "<c-l>", "<C-\\><C-n><C-w>l", { noremap = true, silent = true })
 
-vim.keymap.set("n", "<c-h>", "<C-w>h", { noremap = true, silent = true })
-vim.keymap.set("n", "<c-j>", "<C-w>j", { noremap = true, silent = true })
-vim.keymap.set("n", "<c-k>", "<C-w>k", { noremap = true, silent = true })
-vim.keymap.set("n", "<c-l>", "<C-w>l", { noremap = true, silent = true })
+vim.keymap.set({ "n", "i" }, "<c-h>", "<ESC><C-w>h", { noremap = true, silent = true })
+vim.keymap.set({ "n", "i" }, "<c-j>", "<ESC><C-w>j", { noremap = true, silent = true })
+vim.keymap.set({ "n", "i" }, "<c-k>", "<ESC><C-w>k", { noremap = true, silent = true })
+vim.keymap.set({ "n", "i" }, "<c-l>", "<ESC><C-w>l", { noremap = true, silent = true })
 
 vim.keymap.set("n", "[b", ":bp<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "]b", ":bn<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<space>bp", ":bp<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<space>bn", ":bn<CR>", { noremap = true, silent = true })
-vim.keymap.set("n", "<space>bd", ":bdelete<CR>", { noremap = true, silent = true })
+-- vim.keymap.set("n", "<space>bd", ":bdelete<CR>", { noremap = true, silent = true })
+vim.keymap.set("n", "<space>bQ", ":%bd|e#<CR>", { noremap = true, silent = true, desc = "Delete other buffers" })
+vim.keymap.set("n", "<space>br", ":e#<CR>", { noremap = true, silent = true, desc = "Reopen last buffer" })
 
 vim.keymap.set("n", "<space>s", ":split<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<space>v", ":vsplit<CR>", { noremap = true, silent = true })
@@ -23,11 +25,11 @@ vim.keymap.set("n", "<space>v", ":vsplit<CR>", { noremap = true, silent = true }
 vim.keymap.set("n", "<space>tv", ":vert rightbelow terminal<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<space>ts", ":horizontal rightbelow terminal<CR>", { noremap = true, silent = true })
 
-local builtin = require("telescope.builtin")
+-- local builtin = require("telescope.builtin")
 -- vim.keymap.set("n", "<leader>ff", builtin.find_files, { desc = "Telescope find files" })
 -- vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Telescope live grep' })
 -- vim.keymap.set('n', '<leader>bb', builtin.buffers, { desc = 'Telescope buffers' })
-vim.keymap.set("n", "<leader>fh", builtin.help_tags, { desc = "Telescope help tags" })
+-- vim.keymap.set("n", "<leader>fh", builtin.help_tags, { desc = "Telescope help tags" })
 
 vim.keymap.set("n", "<D-b>", ":lua Snacks.explorer()<CR>", { desc = "Open file explorer" })
 vim.keymap.set("n", "<leader>f", ":Yazi<CR>", { desc = "Telescope help tags" })
@@ -47,9 +49,14 @@ vim.keymap.set("n", "<F9>", ":lua require'dap'.continue()<CR>")
 vim.keymap.set("n", "<F5>", ":lua require'dap'.step_over()<CR>")
 vim.keymap.set("n", "<F4>", ":lua require'dap'.toggle_breakpoint()<CR>")
 vim.keymap.set("n", "<F8>", ":lua require'dapui'.toggle()<CR>")
+vim.keymap.set("n", "<F2>", ":lua require'dapui'.eval()<CR>")
+
+-- vim.keymap.set("n", "KK", ":lua vim.diagnostic.open_float()<CR>")
+
 -- vim.api.nvim_set_keymap("n", "<c-c>", '"*y :let @+=@*<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "p", '"0p', { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "P", '"0P', { noremap = true, silent = true })
+
+-- vim.api.nvim_set_keymap("n", "p", '"0p', { noremap = true, silent = true })
+-- vim.api.nvim_set_keymap("n", "P", '"0P', { noremap = true, silent = true })
 vim.api.nvim_set_keymap("n", "x", '"_x', { noremap = true, silent = true })
 -- vim.api.nvim_set_keymap("n", "p", '"_p', { noremap = true, silent = true })
 
