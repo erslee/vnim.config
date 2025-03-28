@@ -130,6 +130,10 @@ return {
 				formatting = {
 					format = lspkind.cmp_format({ mode = "symbol_text", maxwidth = 50 }),
 				},
+				window = {
+					completion = cmp.config.window.bordered(),
+					documentation = cmp.config.window.bordered(),
+				},
 			})
 		end,
 	},

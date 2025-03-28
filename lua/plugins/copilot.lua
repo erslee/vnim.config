@@ -23,7 +23,7 @@ return {
 	keys = {
 		-- { "<c-I>", ":lua require'copilot.suggestion'.accept_line()<cr>", desc = "Copilot accept line", mode = { "i" } },
 		-- { "<c-]>", ":lua require'copilot.suggestion'.next()<cr>", desc = "Find Files", mode = { "i" } },
-		{ "<leader>oc", ":lua require'copilot.suggestion'.toggle_auto_trigger()<cr>", desc = "Copilot toggle" },
+		{ "<leader>uo", ":lua require'copilot.suggestion'.toggle_auto_trigger()<cr>", desc = "Copilot toggle" },
 
 		-- { "<leader>pf", "<cmd>Telescope find_files<cr>", desc = "Find Files" },
 		-- { "<leader>pf", "<cmd>Telescope find_files<cr>", desc = "Find Files" },
