@@ -35,7 +35,16 @@ return {
 			null_ls.setup({
 				sources = {
 					null_ls.builtins.formatting.prettierd.with({
-						filetypes = { "javascript", "typescript", "css", "html", "json", "yaml", "markdown" },
+						filetypes = {
+							"javascript",
+							"typescript",
+							"css",
+							"html",
+							"json",
+							"yaml",
+							"markdown",
+							"typescriptreact",
+						},
 					}),
 					null_ls.builtins.formatting.stylua,
 				},
@@ -64,7 +73,16 @@ return {
 		build = ":TSUpdate",
 		config = function()
 			require("nvim-treesitter.configs").setup({
-				ensure_installed = { "lua", "typescript", "python", "json", "html", "css", "javascript", "sql" },
+				ensure_installed = {
+					"lua",
+					"typescript",
+					"python",
+					"json",
+					"html",
+					"css",
+					"javascript",
+					"sql",
+				},
 				highlight = { enable = true },
 				indent = { enable = true },
 			})
@@ -121,7 +139,7 @@ return {
 					["<S-Tab>"] = cmp.mapping.select_prev_item(),
 				}),
 				sources = cmp.config.sources({
-					{ name = "copilot" },
+					-- { name = "copilot" },
 					{ name = "nvim_lsp" },
 					{ name = "luasnip" },
 					{ name = "buffer" },
@@ -139,15 +157,12 @@ return {
 	},
 
 	-- Copilot
-	{
-		"zbirenbaum/copilot-cmp",
-		config = function()
-			require("copilot_cmp").setup({
-				suggestion = { enabled = false },
-				panel = { enabled = true },
-			})
-		end,
-	},
+	-- {
+	--   "zbirenbaum/copilot-cmp",
+	--   config = function()
+	--     require("copilot_cmp").setup()
+	--   end,
+	-- },
 
 	-- LSP Configuration with Keybindings
 	{
@@ -160,7 +175,7 @@ return {
 			local on_attach = function(client, bufnr)
 				local opts = { noremap = true, silent = true, buffer = bufnr }
 
-				vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+				-- vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
 				vim.keymap.set("n", "gD", vim.lsp.buf.type_definition, opts)
 				vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
 				vim.keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
@@ -188,4 +203,47 @@ return {
 				vim.lsp.with(vim.lsp.handlers.signature_help, { border = "rounded" })
 		end,
 	},
+	-- {
+	--   "nvimdev/lspsaga.nvim",
+	--   config = function()
+	--     require("lspsaga").setup({
+	--       ui = {
+	--         border = "rounded",
+	--         title = false,
+	--         code_action = "",
+	--       },
+	--       symbol_in_winbar = {
+	--         in_custom = true,
+	--         enable = true,
+	--         separator = " > ",
+	--         show_file = true,
+	--         click_support = false,
+	--       },
+	--     })
+	--   end,
+	--   dependencies = {
+	--     "nvim-treesitter/nvim-treesitter", -- optional
+	--     "nvim-tree/nvim-web-devicons",  -- optional
+	--   },
+	--   keys = {
+	--     { "<leader>l",  desc = "Lsp Saga" },
+	--     { "<leader>ls", "<cmd>Lspsaga show_line_diagnostics<cr>",   desc = "Line Diagnostics" },
+	--     { "<leader>lS", "<cmd>Lspsaga show_cursor_diagnostics<cr>", desc = "Cursor Diagnostics" },
+	--     { "<leader>lR", "<cmd>Lspsaga rename ++project<cr>",        desc = "Rename" },
+	--     { "<leader>lr", "<cmd>Lspsaga rename ++project<cr>",        desc = "Rename" },
+	--     { "<leader>la", "<cmd>Lspsaga code_action<cr>",             desc = "Code Action" },
+	--     { "K",          "<cmd>Lspsaga hover_doc<cr>",               desc = "Hover Doc" },
+	--     { "<leader>lH", "<cmd>Lspsaga signature_help<cr>",          desc = "Signature Help" },
+	--     { "<leader>ld", "<cmd>Lspsaga show_line_diagnostics<cr>",   desc = "Line Diagnostics" },
+	--     { "[e",         "<cmd>Lspsaga diagnostic_jump_prev<cr>",    desc = "Prev Diagnostic" },
+	--     { "]e",         "<cmd>Lspsaga diagnostic_jump_next<cr>",    desc = "Next Diagnostic" },
+	--     { "gd",         "<cmd>Lspsaga goto_definition<cr>",         desc = "Goto Definition" },
+	--     { "gD",         "<cmd>Lspsaga peek_definition<cr>",         desc = "Peek Definition" },
+	--     { "gt",         "<cmd>Lspsaga goto_type_definition<cr>",    desc = "Goto Type Definition" },
+	--     { "gT",         "<cmd>Lspsaga peek_type_definition<cr>",    desc = "Peek Type Definition" },
+	--     { "gr",         "<cmd>Lspsaga finder<cr>",                  desc = "Finder" },
+	--     { "gp",         "<cmd>Lspsaga outline<cr>",                 desc = "Outline" },
+	--     { "<leader>lq", "<cmd>Lspsaga term_toggle<cr>",             desc = "Toggle Terminal" },
+	--   },
+	-- },
 }

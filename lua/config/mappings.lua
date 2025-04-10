@@ -51,6 +51,11 @@ vim.keymap.set("n", "<F4>", ":lua require'dap'.toggle_breakpoint()<CR>")
 vim.keymap.set("n", "<F8>", ":lua require'dapui'.toggle()<CR>")
 vim.keymap.set("n", "<F2>", ":lua require'dapui'.eval()<CR>")
 
+-- vim.keymap.set({ "n", "v" }, "H", "b", { noremap = true, silent = true })
+-- vim.keymap.set({ "n", "v" }, "L", "e", { noremap = true, silent = true })
+-- vim.keymap.set({ "n", "v" }, "HH", "^", { noremap = true, silent = true })
+-- vim.keymap.set({ "n", "v" }, "LL", "$", { noremap = true, silent = true })
+
 -- vim.keymap.set("n", "KK", ":lua vim.diagnostic.open_float()<CR>")
 
 -- vim.api.nvim_set_keymap("n", "<c-c>", '"*y :let @+=@*<CR>', { noremap = true, silent = true })
