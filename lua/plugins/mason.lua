@@ -44,6 +44,7 @@ return {
 							"yaml",
 							"markdown",
 							"typescriptreact",
+							"python",
 						},
 					}),
 					null_ls.builtins.formatting.stylua,
@@ -85,6 +86,16 @@ return {
 				},
 				highlight = { enable = true },
 				indent = { enable = true },
+				auto_install = true,
+				incremental_selection = {
+					enable = true,
+					keymaps = {
+						init_selection = "gnn", -- set to `false` to disable one of the mappings
+						node_incremental = "grn",
+						scope_incremental = "grc",
+						node_decremental = "grm",
+					},
+				},
 			})
 		end,
 	},
@@ -137,10 +148,41 @@ return {
 					end),
 					-- ["<Tab>"] = cmp.mapping.select_next_item(),
 					["<S-Tab>"] = cmp.mapping.select_prev_item(),
+					["<C-j>"] = cmp.mapping(function(fallback)
+						if cmp.visible() then
+							cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
+						else
+							fallback()
+						end
+					end, { "i", "s" }),
+					["<C-k>"] = cmp.mapping(function(fallback)
+						if cmp.visible() then
+							cmp.select_prev_item({ behavior = cmp.SelectBehavior.Select })
+						else
+							fallback()
+						end
+					end, { "i", "s" }),
+					["<C-e>"] = cmp.mapping.close(),
+					["<Up>"] = cmp.mapping(function(fallback)
+						if cmp.visible() then
+							cmp.close()
+						-- cmp.select_prev_item()
+						else
+							fallback()
+						end
+					end, { "i", "s" }),
+					["<Down>"] = cmp.mapping(function(fallback)
+						if cmp.visible() then
+							-- cmp.select_next_item()
+							cmp.close()
+						else
+							fallback()
+						end
+					end, { "i", "s" }),
 				}),
 				sources = cmp.config.sources({
-					-- { name = "copilot" },
 					{ name = "nvim_lsp" },
+					{ name = "copilot" },
 					{ name = "luasnip" },
 					{ name = "buffer" },
 					{ name = "path" },
@@ -157,12 +199,12 @@ return {
 	},
 
 	-- Copilot
-	-- {
-	--   "zbirenbaum/copilot-cmp",
-	--   config = function()
-	--     require("copilot_cmp").setup()
-	--   end,
-	-- },
+	{
+		"zbirenbaum/copilot-cmp",
+		config = function()
+			require("copilot_cmp").setup()
+		end,
+	},
 
 	-- LSP Configuration with Keybindings
 	{

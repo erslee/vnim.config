@@ -9,7 +9,8 @@ vim.g["typescript_compiler_options"] = "-p tsconfig.json"
 vim.g["ale_completion_enabled"] = 1
 vim.g["ale_fix_on_save"] = 1
 
-vim.cmd.colorscheme("onedark")
+vim.cmd.colorscheme("retrobox")
+-- vim.cmd.colorscheme("onedark")
 -- vim.cmd.colorscheme("doom-one")
 -- vim.cmd.colorscheme("catppuccin-latte")
 -- vim.cmd.colorscheme("tokyonight")

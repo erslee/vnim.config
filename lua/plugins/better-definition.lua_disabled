@@ -1,0 +1,17 @@
+return {
+  {
+    dir = "~/dev/nvim/smart-definition",
+    config = function()
+      require("smart-definition").setup()
+    end,
+    keys = {
+      { "gd", ":lua require'smart-definition'.goto_definition_smart()<cr>", desc = "Go to definition w" },
+      {
+        "gv",
+        ":lua require'smart-definition'.goto_definition_new_window()<cr>",
+        desc = "Preview definition w",
+      },
+      { "go", "<cmd> bdelete <cr>",                                         desc = "Close definition w" },
+    },
+  },
+}
