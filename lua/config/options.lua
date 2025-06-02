@@ -122,6 +122,6 @@ vim.api.nvim_command("set title")
 -- vim.keymap.set("n", "<leader>mm", ":SaveSession<CR>", { desc = "Save session with a name" })
 vim.o.autoread = true
 vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "CursorHoldI", "FocusGained" }, {
-	command = "if mode() != 'c' | checktime | endif",
-	pattern = { "*" },
+  command = "if mode() != 'c' | checktime | endif",
+  pattern = { "*" },
 })
