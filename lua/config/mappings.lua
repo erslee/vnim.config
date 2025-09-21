@@ -35,6 +35,7 @@ vim.keymap.set("n", "<space>ts", ":horizontal rightbelow terminal<CR>", { norema
 -- vim.keymap.set("n", "<leader>fh", builtin.help_tags, { desc = "Telescope help tags" })
 
 vim.keymap.set("n", "<D-b>", ":lua Snacks.explorer()<CR>", { desc = "Open file explorer" })
+vim.keymap.set("n", "<leader>bb", ":lua Snacks.explorer()<CR>", { desc = "Open file explorer" })
 vim.keymap.set("n", "<leader>f", ":Yazi<CR>", { desc = "Telescope help tags" })
 vim.keymap.set("n", "f", ":Yazi<CR>", { desc = "Telescope help tags" })
 vim.keymap.set("n", "<leader>qq", ":quitall", { desc = "Quit all vim" })
@@ -43,6 +44,7 @@ vim.keymap.set("n", "<leader>wq", ":q<CR>", { desc = "Quit all vim" })
 vim.keymap.set("n", "<leader>ww", ":w", { desc = "Save changes" })
 vim.keymap.set("n", "<D-s>", ":w<CR>", { desc = "Save file changes" })
 vim.keymap.set("i", "<D-s>", "<ESC>:w<CR>", { desc = "Save file changes" })
+vim.keymap.set("n", "<leader>ss", ":w<CR>", { desc = "Save file changes" })
 vim.keymap.set("n", "<leader>rr", ":Rest run<CR>", { desc = "Run REST command" })
 vim.keymap.set("n", "<D-r>", ":Rest run<CR>", { desc = "Run REST command" })
 
