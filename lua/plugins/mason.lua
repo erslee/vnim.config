@@ -24,7 +24,10 @@
 return {
 	-- Mason: Manage LSPs, Linters, Formatters
 	{ "williamboman/mason.nvim", config = true },
-	{ "williamboman/mason-lspconfig.nvim" },
+	{
+		"williamboman/mason-lspconfig.nvim",
+		opts = { ensure_installed = { "ts_ls", "lua_ls", "pyright" } },
+	},
 	{ "neovim/nvim-lspconfig" },
 	{ "jay-babu/mason-null-ls.nvim" }, -- Mason integration for null-ls
 	{
@@ -71,31 +74,29 @@ return {
 	-- Treesitter: Better Syntax Highlighting
 	{
 		"nvim-treesitter/nvim-treesitter",
+		branch = "main",
 		build = ":TSUpdate",
+		lazy = false,
 		config = function()
-			require("nvim-treesitter.configs").setup({
-				ensure_installed = {
-					"lua",
-					"typescript",
-					"python",
-					"json",
-					"html",
-					"css",
-					"javascript",
-					"sql",
-				},
-				highlight = { enable = true },
-				indent = { enable = true },
-				auto_install = true,
-				incremental_selection = {
-					enable = true,
-					keymaps = {
-						init_selection = "gnn", -- set to `false` to disable one of the mappings
-						node_incremental = "grn",
-						scope_incremental = "grc",
-						node_decremental = "grm",
-					},
-				},
+			require("nvim-treesitter").install({
+				"lua",
+				"typescript",
+				"python",
+				"json",
+				"html",
+				"css",
+				"javascript",
+				"sql",
+			})
+
+			vim.api.nvim_create_autocmd("FileType", {
+				group = vim.api.nvim_create_augroup("treesitter-highlight", { clear = true }),
+				callback = function(args)
+					-- start highlighting when a parser exists for this filetype
+					if pcall(vim.treesitter.start, args.buf) then
+						vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+					end
+				end,
 			})
 		end,
 	},
