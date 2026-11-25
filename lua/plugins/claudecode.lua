@@ -1,7 +1,10 @@
 return {
 	"coder/claudecode.nvim",
 	dependencies = { "folke/snacks.nvim" },
-	opts = {},
+	opts = function()
+		-- Tag lets scripts/claude-status map this terminal to its Claude session id
+		return { env = { NVIM_CLAUDE_TERM = require("claude.terminals").MAIN_TERM_ID } }
+	end,
 	keys = {
 		{ "<leader>a", nil, desc = "AI/Claude Code" },
 		{ "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
@@ -19,5 +22,26 @@ return {
 		},
 		{ "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
 		{ "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
+		{
+			"<leader>av",
+			function()
+				require("claude.terminals").open("vertical")
+			end,
+			desc = "New Claude (vertical split)",
+		},
+		{
+			"<leader>ah",
+			function()
+				require("claude.terminals").open("horizontal")
+			end,
+			desc = "New Claude (horizontal split)",
+		},
+		{
+			"<leader>aD",
+			function()
+				require("claude.status").dashboard()
+			end,
+			desc = "Claude sessions dashboard",
+		},
 	},
 }

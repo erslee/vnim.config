@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Records Claude Code session state for Neovim.
+#   claude-status statusline  -> settings.json "statusLine" (prints Claude's own status line)
+#   claude-status hook        -> settings.json "hooks" (must print nothing: stdout becomes Claude context)
+set -u
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-status"
+mkdir -p "$STATE_DIR"
+
+input=$(cat)
+sid=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
+[ -z "$sid" ] && exit 0
+base="$STATE_DIR/$sid"
+
+# Atomic write so Neovim never reads a half-written file
+write() {
+	local tmp
+	tmp=$(mktemp "$STATE_DIR/.tmp.XXXXXX") && printf '%s' "$2" >"$tmp" && mv -f "$tmp" "$1"
+}
+
+write_meta() {
+	write "$base.meta.json" "$(jq -c --arg nvim "${NVIM:-}" --arg term "${NVIM_CLAUDE_TERM:-}" \
+		'{session_id, cwd, nvim: $nvim, term: $term}' <<<"$input")"
+}
+
+case "${1:-}" in
+statusline)
+	write "$base.status.json" "$(jq -c '{
+		model: .model.display_name,
+		context: .context_window.used_percentage,
+		cost: .cost.total_cost_usd,
+		rate_limits
+	}' <<<"$input")"
+	[ -f "$base.meta.json" ] || write_meta
+	jq -r '[
+		.model.display_name,
+		(.context_window.used_percentage // empty | "ctx \(floor)%"),
+		(.rate_limits.five_hour.used_percentage // empty | "5h \(floor)%"),
+		(.rate_limits.seven_day.used_percentage // empty | "7d \(floor)%")
+	] | join(" · ")' <<<"$input"
+	;;
+hook)
+	case "$(jq -r '.hook_event_name' <<<"$input")" in
+	SessionStart)
+		write_meta
+		write "$base.state" idle
+		;;
+	UserPromptSubmit | PostToolUse) write "$base.state" working ;;
+	Notification)
+		case "$(jq -r '.notification_type // empty' <<<"$input")" in
+		permission_prompt | elicitation*) write "$base.state" waiting ;;
+		idle_prompt) write "$base.state" idle ;;
+		esac
+		;;
+	Stop) write "$base.state" idle ;;
+	SubagentStart)
+		mkdir -p "$base.agents"
+		: >"$base.agents/$(jq -r '.agent_id' <<<"$input")"
+		;;
+	SubagentStop) rm -f "$base.agents/$(jq -r '.agent_id' <<<"$input")" ;;
+	SessionEnd) rm -rf "$base.meta.json" "$base.status.json" "$base.state" "$base.agents" ;;
+	esac
+	;;
+esac
+exit 0

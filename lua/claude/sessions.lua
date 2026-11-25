@@ -1,0 +1,104 @@
+-- Reads Claude session state written by scripts/claude-status
+local M = {}
+
+local MAX_AGE_SEC = 12 * 3600
+
+M.dir = (vim.env.XDG_STATE_HOME or vim.fn.expand("~/.local/state")) .. "/claude-status"
+
+local function read_file(path)
+	local f = io.open(path, "r")
+	if not f then
+		return nil
+	end
+	local content = f:read("*a")
+	f:close()
+	return content
+end
+
+local function read_json(path)
+	local content = read_file(path)
+	if not content or content == "" then
+		return nil
+	end
+	local ok, value = pcall(vim.json.decode, content, { luanil = { object = true, array = true } })
+	return ok and value or nil
+end
+
+local function mtime(path)
+	local stat = vim.uv.fs_stat(path)
+	return stat and stat.mtime.sec or 0
+end
+
+local function count_entries(path)
+	local count = 0
+	if vim.uv.fs_stat(path) then
+		for _ in vim.fs.dir(path) do
+			count = count + 1
+		end
+	end
+	return count
+end
+
+local function load(session_id)
+	local base = M.dir .. "/" .. session_id
+	local meta = read_json(base .. ".meta.json") or {}
+	local status = read_json(base .. ".status.json") or {}
+	local state = vim.trim(read_file(base .. ".state") or "idle")
+	return {
+		session_id = session_id,
+		cwd = meta.cwd,
+		nvim = meta.nvim,
+		term = meta.term,
+		state = state,
+		model = status.model,
+		context = status.context,
+		cost = status.cost,
+		rate_limits = status.rate_limits,
+		agents = count_entries(base .. ".agents"),
+		updated = math.max(mtime(base .. ".meta.json"), mtime(base .. ".state"), mtime(base .. ".status.json")),
+	}
+end
+
+--- All sessions updated recently, newest first
+function M.all()
+	local sessions = {}
+	if not vim.uv.fs_stat(M.dir) then
+		return sessions
+	end
+	local now = os.time()
+	for name in vim.fs.dir(M.dir) do
+		local session_id = name:match("^(.+)%.meta%.json$")
+		if session_id then
+			local session = load(session_id)
+			if now - session.updated < MAX_AGE_SEC then
+				table.insert(sessions, session)
+			end
+		end
+	end
+	table.sort(sessions, function(a, b)
+		return a.updated > b.updated
+	end)
+	return sessions
+end
+
+--- Rate limits are account-wide: take them from the most recently updated session that has them
+function M.rate_limits(sessions)
+	for _, session in ipairs(sessions) do
+		if session.rate_limits then
+			return session.rate_limits
+		end
+	end
+	return nil
+end
+
+--- Session whose terminal tag matches, if its hooks have reported
+function M.by_term(sessions, term_id)
+	for _, session in ipairs(sessions) do
+		if session.term == term_id then
+			return session
+		end
+	end
+	return nil
+end
+
+return M

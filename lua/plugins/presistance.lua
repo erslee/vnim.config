@@ -1,17 +1,22 @@
--- Terminal buffers are excluded: Claude is restored via `--continue` instead of a fresh shell
+-- Terminal buffers are excluded: Claude terminals are reopened with `--resume <id>` instead
 vim.opt.sessionoptions = { "buffers", "curdir", "folds", "globals", "help", "tabpages", "winsize" }
 
-local function claude_terminal_open()
-	if not package.loaded["claudecode"] then
-		return false
-	end
-	local ok, bufnr = pcall(require("claudecode.terminal").get_active_terminal_bufnr)
-	return ok and bufnr ~= nil
+local function save_claude_terminals()
+	local saved = vim.tbl_map(function(term)
+		return { layout = term.layout, session_id = term.session_id }
+	end, require("claude.terminals").live())
+	vim.g.ClaudeTerms = #saved > 0 and vim.json.encode(saved) or nil
 end
 
-local function restore_claude()
-	require("lazy").load({ plugins = { "claudecode.nvim" } })
-	require("claudecode.terminal").toggle_open_no_focus({}, "--continue")
+local function restore_claude_terminals()
+	local ok, saved = pcall(vim.json.decode, vim.g.ClaudeTerms or "[]")
+	if not ok then
+		return
+	end
+	local terminals = require("claude.terminals")
+	for _, term in ipairs(saved) do
+		terminals.restore(term)
+	end
 end
 
 return {
@@ -21,6 +26,8 @@ return {
 	config = function(_, opts)
 		local persistence = require("persistence")
 		persistence.setup(opts)
+		local autosave = require("session.autosave")
+		autosave.setup()
 
 		local group = vim.api.nvim_create_augroup("session-restore", { clear = true })
 
@@ -28,8 +35,15 @@ return {
 		vim.api.nvim_create_autocmd("User", {
 			group = group,
 			pattern = "PersistenceSavePre",
+			callback = save_claude_terminals,
+		})
+
+		-- A session without Claude terminals must not inherit the previous session's list
+		vim.api.nvim_create_autocmd("User", {
+			group = group,
+			pattern = "PersistenceLoadPre",
 			callback = function()
-				vim.g.ClaudeCodeOpen = claude_terminal_open() and 1 or nil
+				vim.g.ClaudeTerms = nil
 			end,
 		})
 
@@ -37,8 +51,10 @@ return {
 			group = group,
 			pattern = "PersistenceLoadPost",
 			callback = function()
-				if vim.g.ClaudeCodeOpen == 1 then
-					vim.schedule(restore_claude)
+				autosave.enable()
+				autosave.mark_saved()
+				if vim.g.ClaudeTerms then
+					vim.schedule(restore_claude_terminals)
 				end
 			end,
 		})
@@ -55,6 +71,7 @@ return {
 			nested = true,
 			callback = function()
 				if vim.fn.argc() == 0 and not vim.g.started_with_stdin and #vim.api.nvim_list_uis() > 0 then
+					autosave.enable()
 					persistence.load()
 				end
 			end,

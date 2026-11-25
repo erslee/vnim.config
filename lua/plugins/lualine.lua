@@ -88,6 +88,28 @@ return {
         lualine_x = {
           {
             function()
+              return require("session.autosave").status()
+            end,
+            cond = function()
+              return package.loaded["persistence"] ~= nil
+            end,
+            color = function()
+              return require("session.autosave").status_color()
+            end,
+          },
+          {
+            function()
+              return require("claude.status").statusline()
+            end,
+            cond = function()
+              return require("claude.status").has_status()
+            end,
+            color = function()
+              return require("claude.status").statusline_color()
+            end,
+          },
+          {
+            function()
               return "  " .. require("dap").status()
             end,
             cond = function()
