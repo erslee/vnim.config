@@ -109,7 +109,7 @@ return {
 			{
 				"<leader>da",
 				function()
-					if vim.fn.filereadable(".vscode/launch.json") then
+					if vim.fn.filereadable(".vscode/launch.json") == 1 then
 						local dap_vscode = require("dap.ext.vscode")
 						dap_vscode.load_launchjs(nil, {
 							["pwa-node"] = js_based_languages,

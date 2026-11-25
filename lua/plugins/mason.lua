@@ -26,10 +26,13 @@ return {
 	{ "williamboman/mason.nvim", config = true },
 	{
 		"williamboman/mason-lspconfig.nvim",
-		opts = { ensure_installed = { "ts_ls", "lua_ls", "pyright" } },
+		opts = { ensure_installed = { "lua_ls", "pyright", "ruff", "ts_ls" } },
 	},
 	{ "neovim/nvim-lspconfig" },
-	{ "jay-babu/mason-null-ls.nvim" }, -- Mason integration for null-ls
+	{
+		"jay-babu/mason-null-ls.nvim",
+		opts = { ensure_installed = { "prettierd", "stylua" } },
+	},
 	{
 		"nvimtools/none-ls.nvim",
 		config = function()
@@ -39,35 +42,49 @@ return {
 				sources = {
 					null_ls.builtins.formatting.prettierd.with({
 						filetypes = {
-							"javascript",
-							"typescript",
 							"css",
 							"html",
+							"javascript",
+							"javascriptreact",
 							"json",
-							"yaml",
 							"markdown",
+							"typescript",
 							"typescriptreact",
-							"python",
+							"yaml",
 						},
 					}),
 					null_ls.builtins.formatting.stylua,
 				},
-				on_attach = function(client, bufnr)
-					if client.supports_method("textDocument/formatting") then
-						-- Format on save
-						vim.api.nvim_create_autocmd("BufWritePre", {
-							buffer = bufnr,
-							callback = function()
-								vim.lsp.buf.format({ async = false })
-							end,
-						})
-					end
+			})
+
+			-- Only these clients format; ts_ls/lua_ls/pyright would otherwise fight prettierd/stylua
+			local formatters = { ["null-ls"] = true, ruff = true }
+			local function format(bufnr)
+				local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/formatting" })
+				local has_formatter = vim.iter(clients):any(function(client)
+					return formatters[client.name]
+				end)
+				if has_formatter then
+					vim.lsp.buf.format({
+						async = false,
+						bufnr = bufnr,
+						filter = function(client)
+							return formatters[client.name]
+						end,
+					})
+				end
+			end
+
+			vim.api.nvim_create_autocmd("BufWritePre", {
+				group = vim.api.nvim_create_augroup("format-on-save", { clear = true }),
+				callback = function(args)
+					format(args.buf)
 				end,
 			})
 
 			vim.keymap.set("n", "<leader>ft", function()
-				vim.lsp.buf.format({ async = false })
-			end, { noremap = true, silent = true })
+				format(0)
+			end, { desc = "Format buffer", silent = true })
 		end,
 	}, -- null-ls (for formatting & linting)
 
@@ -79,14 +96,15 @@ return {
 		lazy = false,
 		config = function()
 			require("nvim-treesitter").install({
-				"lua",
-				"typescript",
-				"python",
-				"json",
-				"html",
 				"css",
+				"html",
 				"javascript",
+				"json",
+				"lua",
+				"python",
 				"sql",
+				"tsx",
+				"typescript",
 			})
 
 			vim.api.nvim_create_autocmd("FileType", {
@@ -115,7 +133,7 @@ return {
 		},
 		config = function()
 			local has_words_before = function()
-				if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then
+				if vim.bo.buftype == "prompt" then
 					return false
 				end
 				local line, col = unpack(vim.api.nvim_win_get_cursor(0))
@@ -212,11 +230,9 @@ return {
 	{
 		"neovim/nvim-lspconfig",
 		config = function()
-			local capabilities = require("cmp_nvim_lsp").default_capabilities()
+			vim.lsp.config("*", { capabilities = require("cmp_nvim_lsp").default_capabilities() })
 
-			-- Keybindings for LSP
-			-- local on_attach = function(client, bufnr)
-			local opts = { noremap = true, silent = true, buffer = bufnr }
+			local opts = { noremap = true, silent = true }
 
 			-- vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
 			vim.keymap.set("n", "gD", vim.lsp.buf.type_definition, opts)
@@ -227,26 +243,25 @@ return {
 			vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
 			vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
 			vim.keymap.set("n", "<leader>ce", vim.diagnostic.open_float, opts)
-			vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
-			vim.keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
-			-- end
+			vim.keymap.set("n", "[d", function()
+				vim.diagnostic.jump({ count = -1, float = true })
+			end, opts)
+			vim.keymap.set("n", "]d", function()
+				vim.diagnostic.jump({ count = 1, float = true })
+			end, opts)
 
-			-- Enable LSP servers
-			-- local servers = { "lua_ls", "ts_ls", "pyright" }
 			local servers = {
 				"lua_ls",
-				"ts_ls",
 				"pyright",
-				-- "python-lsp-server",
+				"ruff",
+				"ts_ls",
 			}
 			for _, server in ipairs(servers) do
 				vim.lsp.enable(server)
 			end
 
 			-- Floating Borders for LSP Popups
-			vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, { border = "rounded" })
-			vim.lsp.handlers["textDocument/signatureHelp"] =
-				vim.lsp.with(vim.lsp.handlers.signature_help, { border = "rounded" })
+			vim.o.winborder = "rounded"
 		end,
 	},
 	-- {
