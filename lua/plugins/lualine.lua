@@ -3,7 +3,6 @@ return {
   dependencies = {
     "nvim-tree/nvim-web-devicons",
     "arkav/lualine-lsp-progress",
-    "AndreM222/copilot-lualine",
     "letieu/harpoon-lualine",
   },
   -- opts = function(_, opts)
@@ -24,6 +23,19 @@ return {
   --   })
   -- end,
   config = function()
+    -- Shown only in Claude terminal windows, focused or not
+    local claude_status = {
+      function()
+        return require("claude.status").statusline()
+      end,
+      cond = function()
+        return require("claude.status").has_status()
+      end,
+      color = function()
+        return require("claude.status").statusline_color()
+      end,
+    }
+
     require("lualine").setup({
       options = {
         icons_enabled = true,
@@ -62,6 +74,13 @@ return {
 
             shorting_target = 40, -- Shortens path to leave 40 spaces in the window
             -- for other components. (terrible name, any suggestions?)
+            -- Terminal names are the full command line ("term://~/dir//123:claude --resume <id>"): show the program only
+            fmt = function(name)
+              if vim.bo.buftype == "terminal" then
+                return vim.api.nvim_buf_get_name(0):match("//%d+:([^%s]+)") or name
+              end
+              return name
+            end,
             symbols = {
               modified = "[+]", -- Text to show when the file is modified.
               readonly = "[-]", -- Text to show when the file is non-modifiable or readonly.
@@ -86,28 +105,7 @@ return {
           "selectioncount",
         },
         lualine_x = {
-          {
-            function()
-              return require("session.autosave").status()
-            end,
-            cond = function()
-              return package.loaded["persistence"] ~= nil
-            end,
-            color = function()
-              return require("session.autosave").status_color()
-            end,
-          },
-          {
-            function()
-              return require("claude.status").statusline()
-            end,
-            cond = function()
-              return require("claude.status").has_status()
-            end,
-            color = function()
-              return require("claude.status").statusline_color()
-            end,
-          },
+          claude_status,
           {
             function()
               return "  " .. require("dap").status()
@@ -152,6 +150,13 @@ return {
 
             shorting_target = 40, -- Shortens path to leave 40 spaces in the window
             -- for other components. (terrible name, any suggestions?)
+            -- Terminal names are the full command line ("term://~/dir//123:claude --resume <id>"): show the program only
+            fmt = function(name)
+              if vim.bo.buftype == "terminal" then
+                return vim.api.nvim_buf_get_name(0):match("//%d+:([^%s]+)") or name
+              end
+              return name
+            end,
             symbols = {
               modified = "[+]", -- Text to show when the file is modified.
               readonly = "[-]", -- Text to show when the file is non-modifiable or readonly.
@@ -162,7 +167,7 @@ return {
           "diff",
           "diagnostics",
         },
-        lualine_x = { "location" },
+        lualine_x = { claude_status, "location" },
         lualine_y = {},
         lualine_z = {},
       },
@@ -212,37 +217,21 @@ return {
         lualine_x = {},
         lualine_y = {
           "lsp_progress",
-          "CurrentSessionName",
+          {
+            function()
+              return require("session.autosave").status()
+            end,
+            cond = function()
+              return package.loaded["persistence"] ~= nil
+            end,
+            color = function()
+              return require("session.autosave").status_color()
+            end,
+          },
           "branch",
         },
         lualine_z = {
           "tabs",
-          {
-            "copilot",
-            -- Default values
-            symbols = {
-              status = {
-                icons = {
-                  enabled = " ",
-                  sleep = " ", -- auto-trigger disabled
-                  disabled = " ",
-                  warning = " ",
-                  unknown = " ",
-                },
-                hl = {
-                  enabled = "#50FA7B",
-                  sleep = "#AEB7D0",
-                  disabled = "#6272A4",
-                  warning = "#FFB86C",
-                  unknown = "#FF5555",
-                },
-              },
-              spinners = "dots", -- has some premade spinners
-              spinner_color = "#6272A4",
-            },
-            show_colors = false,
-            show_loading = true,
-          },
           function()
             return " " .. os.date("%R")
           end,

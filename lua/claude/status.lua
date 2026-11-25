@@ -26,51 +26,73 @@ local function rate_limit_text(rate_limits, with_reset)
 			table.insert(parts, text)
 		end
 	end
-	return #parts > 0 and table.concat(parts, "  ") or nil
+	return #parts > 0 and table.concat(parts, " · ") or nil
 end
 
--- Statusline: cached, refreshed on a timer so lualine never touches the disk
-local cache = { text = "", waiting = false }
+-- Statusline: cached per Claude terminal buffer, refreshed on a timer so lualine never touches the disk
+local cache = {} -- buf -> { text = string, waiting = boolean }
 local timer
+
+local function terminal_text(session, limits)
+	local parts = {}
+	if session then
+		table.insert(parts, STATE_ICONS[session.state] or STATE_ICONS.idle)
+		if session.agents > 0 then
+			table.insert(parts, "\u{f06a9} " .. session.agents)
+		end
+	end
+	local info = {}
+	if session and session.model then
+		table.insert(info, session.model)
+	end
+	if session and session.context then
+		table.insert(info, "ctx " .. percent(session.context))
+	end
+	table.insert(info, limits)
+	if #info > 0 then
+		table.insert(parts, table.concat(info, " · "))
+	end
+	return "\u{f09d1} " .. table.concat(parts, "  ")
+end
 
 local function refresh()
 	local all = sessions.all()
-	local counts, agents = { working = 0, waiting = 0, idle = 0 }, 0
+	local limits = rate_limit_text(sessions.rate_limits(all), false)
+	local fresh = {}
 	for _, term in ipairs(terminals.live()) do
-		local session = term.session_id and sessions.by_term(all, term.term_id)
-		local state = session and session.state or "idle"
-		counts[state] = (counts[state] or 0) + 1
-		agents = agents + (session and session.agents or 0)
+		local session = sessions.by_term(all, term.term_id)
+		fresh[term.buf] = { text = terminal_text(session, limits), waiting = session and session.state == "waiting" }
 	end
-
-	local parts = {}
-	for _, state in ipairs({ "working", "waiting", "idle" }) do
-		if counts[state] > 0 then
-			table.insert(parts, STATE_ICONS[state] .. " " .. counts[state])
-		end
-	end
-	if agents > 0 then
-		table.insert(parts, "\u{f06a9} " .. agents)
-	end
-	table.insert(parts, rate_limit_text(sessions.rate_limits(all), false))
-
-	cache = { text = #parts > 0 and ("\u{f09d1} " .. table.concat(parts, "  ")) or "", waiting = counts.waiting > 0 }
+	cache = fresh
 end
 
-function M.statusline()
+-- Started lazily by whichever lualine callback runs first (cond runs before the component)
+local function ensure_refreshing()
 	if not timer then
 		timer = vim.uv.new_timer()
 		timer:start(0, REFRESH_MS, vim.schedule_wrap(refresh))
 	end
-	return cache.text
+end
+
+-- lualine evaluates each window's statusline with that window current
+local function window_entry()
+	ensure_refreshing()
+	return cache[vim.api.nvim_get_current_buf()]
+end
+
+function M.statusline()
+	local entry = window_entry()
+	-- "%" starts a statusline item: "ctx 10%" must be "ctx 10%%"
+	return entry and (entry.text:gsub("%%", "%%%%")) or ""
 end
 
 function M.has_status()
-	return cache.text ~= ""
+	return window_entry() ~= nil
 end
 
 function M.statusline_color()
-	return cache.waiting and { fg = "#FFB86C" } or nil
+	local entry = window_entry()
+	return entry and entry.waiting and { fg = "#FFB86C" } or nil
 end
 
 -- Dashboard

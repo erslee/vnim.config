@@ -101,6 +101,8 @@ return {
 				"javascript",
 				"json",
 				"lua",
+				"markdown",
+				"markdown_inline",
 				"python",
 				"sql",
 				"tsx",
@@ -142,13 +144,6 @@ return {
 			end
 			local cmp = require("cmp")
 			local lspkind = require("lspkind")
-			lspkind.init({
-				symbol_map = {
-					Copilot = "",
-				},
-			})
-
-			vim.api.nvim_set_hl(0, "CmpItemKindCopilot", { fg = "#6CC644" })
 			cmp.setup({
 				snippet = {
 					expand = function(args)
@@ -202,8 +197,7 @@ return {
 				}),
 				sources = cmp.config.sources({
 					{ name = "nvim_lsp" },
-					{ name = "copilot" },
-					{ name = "luasnip" },
+						{ name = "luasnip" },
 					{ name = "buffer" },
 					{ name = "path" },
 				}),
@@ -218,13 +212,6 @@ return {
 		end,
 	},
 
-	-- Copilot
-	{
-		"zbirenbaum/copilot-cmp",
-		config = function()
-			require("copilot_cmp").setup()
-		end,
-	},
 
 	-- LSP Configuration with Keybindings
 	{
