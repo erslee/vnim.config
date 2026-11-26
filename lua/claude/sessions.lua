@@ -59,6 +59,8 @@ local function load(session_id)
 	return {
 		session_id = session_id,
 		title = title ~= "" and title or nil,
+		-- Sessions recorded before "started" existed: when their meta was written (their last start or resume)
+		started = meta.started or mtime(base .. ".meta.json"),
 		cwd = meta.cwd,
 		nvim = meta.nvim,
 		term = meta.term,
@@ -67,13 +69,14 @@ local function load(session_id)
 		context = status.context,
 		cost = status.cost,
 		rate_limits = status.rate_limits,
+		reported = mtime(base .. ".status.json"),
 		agents = read_entries(base .. ".agents"),
 		loops = active_loops(read_entries(base .. ".loops")),
 		updated = math.max(mtime(base .. ".meta.json"), mtime(base .. ".state"), mtime(base .. ".status.json")),
 	}
 end
 
---- All sessions updated recently, newest first
+--- All sessions updated recently, in a fixed order: by start, so a new session goes last
 function M.all()
 	local sessions = {}
 	if not vim.uv.fs_stat(M.dir) then
@@ -90,19 +93,23 @@ function M.all()
 		end
 	end
 	table.sort(sessions, function(a, b)
-		return a.updated > b.updated
+		if a.started ~= b.started then
+			return a.started < b.started
+		end
+		return a.session_id < b.session_id
 	end)
 	return sessions
 end
 
---- Rate limits are account-wide: take them from the most recently updated session that has them
+--- Rate limits are account-wide: take the ones its status line reported last
 function M.rate_limits(sessions)
+	local latest
 	for _, session in ipairs(sessions) do
-		if session.rate_limits then
-			return session.rate_limits
+		if session.rate_limits and (not latest or session.reported > latest.reported) then
+			latest = session
 		end
 	end
-	return nil
+	return latest and latest.rate_limits
 end
 
 --- Session whose terminal tag matches, if its hooks have reported

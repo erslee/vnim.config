@@ -18,9 +18,13 @@ write() {
 	tmp=$(mktemp "$STATE_DIR/.tmp.XXXXXX") && printf '%s' "$2" >"$tmp" && mv -f "$tmp" "$1"
 }
 
+# started is kept across resumes: the info sidebar orders sessions by it
 write_meta() {
+	local started
+	started=$(jq -r '.started // empty' "$base.meta.json" 2>/dev/null)
 	write "$base.meta.json" "$(jq -c --arg nvim "${NVIM:-}" --arg term "${NVIM_CLAUDE_TERM:-}" \
-		'{session_id, cwd, nvim: $nvim, term: $term}' <<<"$input")"
+		--argjson started "${started:-$(date +%s)}" \
+		'{session_id, cwd, nvim: $nvim, term: $term, started: $started}' <<<"$input")"
 }
 
 # Session name for the info sidebar: the /rename title, else the title Claude generated for the session
