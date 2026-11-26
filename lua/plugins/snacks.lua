@@ -1,3 +1,14 @@
+-- In `vc` the terminal is a popup shell kept in hidden tmux per directory, so it outlives `vc` like its Claudes
+local function toggle_terminal()
+	local tmux = require("claude.tmux")
+	if vim.g.claude_mode == 1 and tmux.available() then
+		local cwd = vim.fn.getcwd()
+		Snacks.terminal(tmux.shell_command(cwd), { cwd = cwd, win = { position = "float" } })
+		return
+	end
+	Snacks.terminal()
+end
+
 return {
 	{ "nvimdev/dashboard-nvim", enabled = false },
 	{
@@ -595,20 +606,9 @@ return {
 				end,
 				desc = "Dismiss All Notifications",
 			},
-			{
-				"<c-/>",
-				function()
-					Snacks.terminal()
-				end,
-				desc = "Toggle Terminal",
-			},
-			{
-				"<c-_>",
-				function()
-					Snacks.terminal()
-				end,
-				desc = "which_key_ignore",
-			},
+			-- Also in terminal mode, so it toggles from inside the terminal and from Claude terminals
+			{ "<c-/>", toggle_terminal, mode = { "n", "t" }, desc = "Toggle Terminal" },
+			{ "<c-_>", toggle_terminal, mode = { "n", "t" }, desc = "which_key_ignore" },
 			{
 				"]]",
 				function()

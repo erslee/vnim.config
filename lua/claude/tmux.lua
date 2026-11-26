@@ -36,6 +36,13 @@ function M.attach_command(term_id)
 	return tmux({ "attach-session", "-t", "=" .. session_name(term_id) })
 end
 
+--- Command for a shell kept per directory: attaches to it, starting it the first time
+function M.shell_command(cwd)
+	-- tmux session names cannot hold "." or ":", so the directory is hashed
+	local name = "shell-" .. vim.fn.sha256(cwd):sub(1, 12)
+	return tmux({ "new-session", "-A", "-s", name, "-c", cwd })
+end
+
 --- Running Claude sessions: term_id -> { clients = attached Neovims, cwd, launch? }
 function M.sessions()
 	if not M.available() then
