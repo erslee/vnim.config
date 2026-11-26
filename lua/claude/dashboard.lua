@@ -126,8 +126,17 @@ local function build()
 		if #members > 0 then
 			table.insert(rows, {})
 			table.insert(rows, { { " " .. group[1], "Title" } })
-			for _, session in ipairs(members) do
-				session_rows(rows, session, live_bufs[session.session_id])
+			-- Sessions without loops first, then the looping ones under their own label
+			for _, with_loops in ipairs({ false, true }) do
+				local part = vim.tbl_filter(function(session)
+					return (#session.loops > 0) == with_loops
+				end, members)
+				if with_loops and #part > 0 then
+					table.insert(rows, { { "  \u{f0456} with loops", "Comment" } })
+				end
+				for _, session in ipairs(part) do
+					session_rows(rows, session, live_bufs[session.session_id])
+				end
 			end
 		end
 	end
