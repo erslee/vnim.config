@@ -23,6 +23,18 @@ write_meta() {
 		'{session_id, cwd, nvim: $nvim, term: $term}' <<<"$input")"
 }
 
+# Session name for the info sidebar: the /rename title, else the title Claude generated for the session
+write_title() {
+	local transcript title
+	transcript=$(jq -r '.transcript_path // empty' <<<"$input")
+	[ -f "$transcript" ] || return
+	title=$(rg --no-filename '"type":"(custom-title|ai-title)"' "$transcript" 2>/dev/null | jq -rs '
+		(map(select(.type == "custom-title")) | last | .customTitle)
+		// (map(select(.type == "ai-title")) | last | .aiTitle)
+		// empty')
+	[ -n "$title" ] && write "$base.title" "$title"
+}
+
 # Loops: /loop and scheduled prompts, from the tools that create and cancel them
 record_loop() {
 	local id
@@ -76,8 +88,12 @@ hook)
 	SessionStart)
 		write_meta
 		write "$base.state" idle
+		write_title
 		;;
-	UserPromptSubmit) write "$base.state" working ;;
+	UserPromptSubmit)
+		write "$base.state" working
+		write_title
+		;;
 	PostToolUse)
 		write "$base.state" working
 		record_loop
@@ -88,14 +104,17 @@ hook)
 		idle_prompt) write "$base.state" idle ;;
 		esac
 		;;
-	Stop) write "$base.state" idle ;;
+	Stop)
+		write "$base.state" idle
+		write_title
+		;;
 	SubagentStart)
 		mkdir -p "$base.agents"
 		write "$base.agents/$(jq -r '.agent_id' <<<"$input")" \
 			"$(jq -c --argjson now "$(date +%s)" '{type: .agent_type, started: $now}' <<<"$input")"
 		;;
 	SubagentStop) rm -f "$base.agents/$(jq -r '.agent_id' <<<"$input")" ;;
-	SessionEnd) rm -rf "$base.meta.json" "$base.status.json" "$base.state" "$base.agents" "$base.loops" ;;
+	SessionEnd) rm -rf "$base.meta.json" "$base.status.json" "$base.state" "$base.title" "$base.agents" "$base.loops" ;;
 	esac
 	;;
 esac

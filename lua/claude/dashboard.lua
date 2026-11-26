@@ -29,12 +29,27 @@ local function clock(timestamp)
 	return os.date(same_day and "%H:%M" or "%a %H:%M", timestamp)
 end
 
+-- Cut a row to the window width, ending with … where it was cut
+local function fit(row, width)
+	local fitted, used = {}, 0
+	for _, chunk in ipairs(row) do
+		local chunk_width = vim.fn.strdisplaywidth(chunk[1])
+		if used + chunk_width > width then
+			table.insert(fitted, { vim.fn.strcharpart(chunk[1], 0, math.max(0, width - used - 1)) .. "…", chunk[2] })
+			return fitted
+		end
+		used = used + chunk_width
+		table.insert(fitted, chunk)
+	end
+	return fitted
+end
+
 -- Lines are lists of { text, highlight? } chunks, so highlights follow the text they belong to
-local function render_lines(rows)
+local function render_lines(rows, width)
 	local lines, marks = {}, {}
 	for index, row in ipairs(rows) do
 		local text, col = "", 0
-		for _, chunk in ipairs(row) do
+		for _, chunk in ipairs(fit(row, width)) do
 			if chunk[2] then
 				table.insert(marks, { index - 1, col, col + #chunk[1], chunk[2] })
 			end
@@ -46,47 +61,79 @@ local function render_lines(rows)
 	return lines, marks
 end
 
--- Two lines per session to fit the sidebar: state and directory, then model, context, cost and age.
+-- Tree nodes: { line = chunks, details? = { chunks... }, children? = { nodes... }, target? = terminal buffer }
+local function add_tree(rows, nodes, prefix, target)
+	for index, node in ipairs(nodes) do
+		local last = index == #nodes
+		local node_target = node.target or target
+		table.insert(rows, vim.list_extend({ { prefix .. (last and "└─ " or "├─ "), "NonText" } }, node.line))
+		targets[#rows] = node_target
+		local inner = prefix .. (last and "   " or "│  ")
+		local has_children = node.children and #node.children > 0
+		for _, detail in ipairs(node.details or {}) do
+			table.insert(rows, vim.list_extend({ { inner .. (has_children and "│ " or "  "), "NonText" } }, detail))
+			targets[#rows] = node_target
+		end
+		add_tree(rows, node.children or {}, inner, node_target)
+	end
+end
+
+-- A session: its name, then directory and model/context/cost/age, with its agents and loops as children.
 -- ▶ marks a Claude shown in a window, ● one running hidden in this Neovim.
-local function session_rows(rows, session, live_buf)
-	local state = session.state
-	local marker = not live_buf and "   " or vim.fn.bufwinid(live_buf) ~= -1 and " \u{25b6} " or " \u{25cf} "
-	local first = #rows + 1
-	table.insert(rows, {
-		{ marker, "DiagnosticOk" },
-		{ (status.STATE_ICONS[state] or " ") .. " " .. ("%-8s"):format(state), STATE_HL[state] },
-		{ " " .. vim.fn.fnamemodify(session.cwd or "?", ":~"):sub(-28), "Directory" },
-	})
-	table.insert(rows, {
-		{ ("     %s · ctx %s · %s"):format(
-			(session.model or "-"):sub(1, 12),
-			status.percent(session.context),
-			session.cost and ("$%.2f"):format(session.cost) or "-"
-		) },
-		{ (" · %s · %s"):format(ago(session.updated), session.session_id:sub(1, 8)), "Comment" },
-	})
+local function session_node(session, live_buf)
+	local marker = not live_buf and "  " or vim.fn.bufwinid(live_buf) ~= -1 and "\u{25b6} " or "\u{25cf} "
+	local dir = vim.fn.fnamemodify(session.cwd or "?", ":~")
+	local children = {}
 	for _, agent in ipairs(session.agents) do
-		table.insert(rows, {
-			{ "     \u{f06a9} ", "Special" },
-			{ ("%-22s "):format((agent.type or "subagent"):sub(1, 22)) },
-			{ agent.started and ago(agent.started) or "", "Comment" },
+		table.insert(children, {
+			line = {
+				{ "\u{f06a9} ", "Special" },
+				{ agent.type or "subagent" },
+				{ agent.started and (" · " .. ago(agent.started)) or "", "Comment" },
+			},
 		})
 	end
 	for _, loop in ipairs(session.loops) do
 		local next_run = loop.next and loop.next > os.time() and ("next " .. clock(loop.next)) or "due"
-		table.insert(rows, {
-			{ "     \u{f0456} ", "Special" },
-			{ ("%-22s "):format((loop.schedule or "?"):sub(1, 22)) },
-			{ next_run, "Comment" },
+		table.insert(children, {
+			line = { { "\u{f0456} ", "Special" }, { loop.schedule or "?" }, { " · " .. next_run, "Comment" } },
+			details = { { { (loop.prompt or ""):gsub("\n", " "), "String" } } },
 		})
-		table.insert(rows, { { "       " .. (loop.prompt or ""):gsub("\n", " "):sub(1, 34), "String" } })
 	end
-	for line = first, #rows do
-		targets[line] = live_buf
-	end
+	return {
+		target = live_buf,
+		line = {
+			{ marker, "DiagnosticOk" },
+			{ (status.STATE_ICONS[session.state] or " ") .. " ", STATE_HL[session.state] },
+			{ session.title or vim.fn.fnamemodify(dir, ":t"), "Bold" },
+		},
+		details = {
+			{ { #dir > 34 and ("…" .. dir:sub(-33)) or dir, "Directory" } },
+			{ { ("%s · ctx %s · %s · %s"):format(
+				session.model or "-",
+				status.percent(session.context),
+				session.cost and ("$%.2f"):format(session.cost) or "-",
+				ago(session.updated)
+			), "Comment" } },
+		},
+		children = children,
+	}
 end
 
-local function build()
+-- Sessions without loops first, then the looping ones on their own branch
+local function group_nodes(members, live_bufs)
+	local nodes, looping = {}, {}
+	for _, session in ipairs(members) do
+		local node = session_node(session, live_bufs[session.session_id])
+		table.insert(#session.loops > 0 and looping or nodes, node)
+	end
+	if #looping > 0 then
+		table.insert(nodes, { line = { { "\u{f0456} with loops", "Comment" } }, children = looping })
+	end
+	return nodes
+end
+
+local function build(width)
 	local all = sessions.all()
 	local live_bufs = {}
 	for _, term in ipairs(terminals.live()) do
@@ -126,32 +173,22 @@ local function build()
 		if #members > 0 then
 			table.insert(rows, {})
 			table.insert(rows, { { " " .. group[1], "Title" } })
-			-- Sessions without loops first, then the looping ones under their own label
-			for _, with_loops in ipairs({ false, true }) do
-				local part = vim.tbl_filter(function(session)
-					return (#session.loops > 0) == with_loops
-				end, members)
-				if with_loops and #part > 0 then
-					table.insert(rows, { { "  \u{f0456} with loops", "Comment" } })
-				end
-				for _, session in ipairs(part) do
-					session_rows(rows, session, live_bufs[session.session_id])
-				end
-			end
+			add_tree(rows, group_nodes(members, live_bufs), " ")
 		end
 	end
 	if #all == 0 then
 		table.insert(rows, {})
 		table.insert(rows, { { " No Claude sessions in the last 12h", "Comment" } })
 	end
-	return render_lines(rows)
+	return render_lines(rows, width)
 end
 
 local function render()
 	if not (buf and vim.api.nvim_buf_is_valid(buf)) then
 		return
 	end
-	local lines, marks = build()
+	local win = vim.fn.bufwinid(buf)
+	local lines, marks = build(win ~= -1 and vim.api.nvim_win_get_width(win) or SIDEBAR_WIDTH)
 	vim.bo[buf].modifiable = true
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false

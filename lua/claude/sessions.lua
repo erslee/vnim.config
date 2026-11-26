@@ -55,8 +55,10 @@ local function load(session_id)
 	local meta = read_json(base .. ".meta.json") or {}
 	local status = read_json(base .. ".status.json") or {}
 	local state = vim.trim(read_file(base .. ".state") or "idle")
+	local title = vim.trim(read_file(base .. ".title") or "")
 	return {
 		session_id = session_id,
+		title = title ~= "" and title or nil,
 		cwd = meta.cwd,
 		nvim = meta.nvim,
 		term = meta.term,
