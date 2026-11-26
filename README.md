@@ -74,7 +74,7 @@ Leader is `Space`. `<leader>?` shows the buffer's keymaps, and which-key lists e
 | `gc` / `gcc` | Toggle comment |
 | `Cmd-h/l`, `Cmd-H/L` (insert) | Word back / forward, line start / end |
 | `<leader>um` | Toggle Markdown rendering |
-| `Ctrl-/` | Toggle terminal |
+| `Ctrl-/` | Toggle terminal (also from inside a terminal, including Claude) |
 | `<leader>tv` / `<leader>ts` | Terminal in a vertical / horizontal split |
 
 ### LSP, diagnostics and formatting
@@ -206,6 +206,8 @@ buffer and session restore all read what it records.
   no prefix or key bindings), and the `vc` window only shows it. Closing `vc` leaves Claude working and its loops firing.
   The sidebar lists such Claudes under **Background** (`○`); `<CR>` brings one into this `vc`. `/exit` ends a Claude for good.
   Without tmux, Claudes run as plain terminals and stop with `vc`.
+- **Popup shell**: `Ctrl-/` opens a shell in a popup, also from a Claude, and closes it again. With tmux it is kept per
+  directory like the Claudes, so the next `vc` in that directory gets the same shell back; `exit` ends it.
 - **Restore per directory**: the open Claudes are saved every 5 s and on exit; the next `vc` in the same directory attaches
   to the ones still running and resumes the others (`--resume <id>`) with their directory and launch arguments.
 - **Keeps the Mac awake**: `caffeinate -i` runs while `vc` is open; the tabline shows `awake` / `off`, and `Ctrl-\ k`,
@@ -233,4 +235,5 @@ vc --model haiku --permission-mode auto    # arguments for a new Claude (used on
 | `Ctrl-\ p` | `<leader>ap` | New Claude from a pasted command |
 | `Ctrl-\ s` | `<leader>aD` | Info sidebar |
 | `Ctrl-\ k` | `<leader>ak` | Toggle caffeinate |
+| `Ctrl-/` | `Ctrl-/` | Toggle the popup shell |
 | `Ctrl-h/j/k/l` | `Ctrl-h/j/k/l` | Move between the sidebar, Claude and the chart |
