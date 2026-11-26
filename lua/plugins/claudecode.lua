@@ -30,6 +30,13 @@ return {
 			desc = "New Claude (vertical split)",
 		},
 		{
+			"<leader>an",
+			function()
+				require("claude.terminals").open("vertical", { here = true })
+			end,
+			desc = "New Claude (current window)",
+		},
+		{
 			"<leader>ah",
 			function()
 				require("claude.terminals").open("horizontal")

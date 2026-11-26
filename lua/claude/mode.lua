@@ -28,7 +28,7 @@ local function save()
 	vim.fn.writefile({ vim.json.encode(all) }, STATE_FILE)
 end
 
---- Restore this directory's Claude sessions (or start a new Claude), with the info buffer below.
+--- Restore this directory's Claude sessions (or start a new Claude) in one window, with the info sidebar on the left.
 --- `vc <claude args>` passes its arguments in CLAUDE_MODE_ARGS; they are used only when nothing is saved.
 function M.start()
 	local launch = vim.env.CLAUDE_MODE_ARGS
@@ -36,13 +36,13 @@ function M.start()
 	require("claude.caffeinate").start()
 	local saved = vim.fn.filereadable(STATE_FILE) == 1 and read_all()[cwd] or {}
 	if #saved > 0 then
-		for index, entry in ipairs(saved) do
-			terminals.restore(entry, { here = index == 1 })
+		for _, entry in ipairs(saved) do
+			terminals.restore(entry)
 		end
 	else
-		terminals.open("vertical", { here = true, focus = false, launch = launch ~= "" and launch or nil })
+		terminals.open("vertical", { focus = false, launch = launch ~= "" and launch or nil })
 	end
-	require("claude.dashboard").open({ split = true })
+	require("claude.dashboard").open({ sidebar = true })
 	vim.cmd.wincmd("p")
 	vim.cmd.startinsert()
 

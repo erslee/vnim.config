@@ -7,12 +7,12 @@ local M = {}
 
 local BUF_NAME = "claude://status"
 local REFRESH_MS = 2000
-local SPLIT_HEIGHT = 12
+local SIDEBAR_WIDTH = 44
 local NS = vim.api.nvim_create_namespace("claude-dashboard")
 local STATE_HL = { working = "DiagnosticInfo", waiting = "DiagnosticWarn", idle = "Comment" }
 
 local buf, timer
-local targets = {} -- line number -> terminal buffer to jump to
+local targets = {} -- line number -> terminal buffer to show
 
 local function ago(timestamp)
 	local seconds = math.max(0, os.time() - (timestamp or os.time()))
@@ -46,37 +46,43 @@ local function render_lines(rows)
 	return lines, marks
 end
 
+-- Two lines per session to fit the sidebar: state and directory, then model, context, cost and age.
+-- ▶ marks a Claude shown in a window, ● one running hidden in this Neovim.
 local function session_rows(rows, session, live_buf)
 	local state = session.state
+	local marker = not live_buf and "   " or vim.fn.bufwinid(live_buf) ~= -1 and " \u{25b6} " or " \u{25cf} "
+	local first = #rows + 1
 	table.insert(rows, {
-		{ live_buf and " ● " or "   ", "DiagnosticOk" },
+		{ marker, "DiagnosticOk" },
 		{ (status.STATE_ICONS[state] or " ") .. " " .. ("%-8s"):format(state), STATE_HL[state] },
-		{ (" %-22s"):format(vim.fn.fnamemodify(session.cwd or "?", ":~"):sub(-22)), "Directory" },
-		{ (" %-10s ctx %-4s %7s"):format(
-			(session.model or "-"):sub(1, 10),
+		{ " " .. vim.fn.fnamemodify(session.cwd or "?", ":~"):sub(-28), "Directory" },
+	})
+	table.insert(rows, {
+		{ ("     %s · ctx %s · %s"):format(
+			(session.model or "-"):sub(1, 12),
 			status.percent(session.context),
 			session.cost and ("$%.2f"):format(session.cost) or "-"
 		) },
-		{ ("  %s ago  %s"):format(ago(session.updated), session.session_id:sub(1, 8)), "Comment" },
+		{ (" · %s · %s"):format(ago(session.updated), session.session_id:sub(1, 8)), "Comment" },
 	})
-	targets[#rows] = live_buf
 	for _, agent in ipairs(session.agents) do
 		table.insert(rows, {
-			{ "       \u{f06a9} agent  ", "Special" },
-			{ ("%-24s"):format(agent.type or "subagent") },
-			{ agent.started and ("running " .. ago(agent.started)) or "running", "Comment" },
+			{ "     \u{f06a9} ", "Special" },
+			{ ("%-22s "):format((agent.type or "subagent"):sub(1, 22)) },
+			{ agent.started and ago(agent.started) or "", "Comment" },
 		})
-		targets[#rows] = live_buf
 	end
 	for _, loop in ipairs(session.loops) do
 		local next_run = loop.next and loop.next > os.time() and ("next " .. clock(loop.next)) or "due"
 		table.insert(rows, {
-			{ "       \u{f0456} loop   ", "Special" },
-			{ ("%-24s"):format((loop.schedule or "?"):sub(1, 24)) },
-			{ ("%-28s"):format((loop.prompt or ""):gsub("\n", " "):sub(1, 28)), "String" },
+			{ "     \u{f0456} ", "Special" },
+			{ ("%-22s "):format((loop.schedule or "?"):sub(1, 22)) },
 			{ next_run, "Comment" },
 		})
-		targets[#rows] = live_buf
+		table.insert(rows, { { "       " .. (loop.prompt or ""):gsub("\n", " "):sub(1, 34), "String" } })
+	end
+	for line = first, #rows do
+		targets[line] = live_buf
 	end
 end
 
@@ -98,18 +104,21 @@ local function build()
 
 	targets = {}
 	local rows = {
-		{ { " \u{f09d1} Claude", "Title" }, { "   updated " .. os.date("%H:%M:%S") .. "   <CR> jump · n new · p from command · R refresh · q close", "Comment" } },
+		{ { " \u{f09d1} Claude", "Title" }, { "  updated " .. os.date("%H:%M:%S"), "Comment" } },
+		{ { " <CR> show · n new · p command · q close", "Comment" } },
 		{},
-		{ { " Limits  ", "Label" }, { status.rate_limit_text(sessions.rate_limits(all), true) or "no data yet" } },
-		{
-			{ " Total   ", "Label" },
-			{ ("%d sessions · "):format(#all) },
-			{ ("%d working"):format(counts.working), STATE_HL.working },
-			{ " · " },
-			{ ("%d waiting"):format(counts.waiting), STATE_HL.waiting },
-			{ (" · %d idle · %d agents · %d loops"):format(counts.idle, agents, loops) },
-		},
 	}
+	local limits = status.rate_limit_text(sessions.rate_limits(all), true)
+	for limit in vim.gsplit(limits or "no limits data yet", " · ", { plain = true }) do
+		table.insert(rows, { { " " .. limit } })
+	end
+	table.insert(rows, {
+		{ (" %d sessions · "):format(#all) },
+		{ ("%d working"):format(counts.working), STATE_HL.working },
+		{ " · " },
+		{ ("%d waiting"):format(counts.waiting), STATE_HL.waiting },
+	})
+	table.insert(rows, { { (" %d idle · %d agents · %d loops"):format(counts.idle, agents, loops) } })
 	for _, group in ipairs({ { "This Neovim", true }, { "Elsewhere", false } }) do
 		local members = vim.tbl_filter(function(session)
 			return (live_bufs[session.session_id] ~= nil) == group[2]
@@ -124,7 +133,7 @@ local function build()
 	end
 	if #all == 0 then
 		table.insert(rows, {})
-		table.insert(rows, { { " No Claude sessions reported in the last 12h", "Comment" } })
+		table.insert(rows, { { " No Claude sessions in the last 12h", "Comment" } })
 	end
 	return render_lines(rows)
 end
@@ -158,18 +167,15 @@ local function start_timer()
 	end
 end
 
-local function jump()
+-- Show the Claude under the cursor in the Claude window (right of the sidebar) and focus it
+local function show()
 	local target = targets[vim.api.nvim_win_get_cursor(0)[1]]
 	if not target then
 		vim.notify("This session is not running in this Neovim", vim.log.levels.INFO)
 		return
 	end
-	local target_win = vim.fn.bufwinid(target)
-	if target_win ~= -1 then
-		vim.api.nvim_set_current_win(target_win)
-	else
-		vim.api.nvim_win_set_buf(0, target)
-	end
+	terminals.show(target)
+	render()
 end
 
 local function create()
@@ -191,7 +197,7 @@ local function create()
 	vim.api.nvim_create_autocmd("BufWipeout", { buffer = buf, callback = stop_timer })
 
 	local opts = { buffer = buf, nowait = true }
-	vim.keymap.set("n", "<CR>", jump, opts)
+	vim.keymap.set("n", "<CR>", show, opts)
 	vim.keymap.set("n", "R", render, opts)
 	vim.keymap.set("n", "n", function()
 		terminals.open("vertical")
@@ -200,8 +206,8 @@ local function create()
 		require("claude.launch").prompt()
 	end, opts)
 	vim.keymap.set("n", "q", function()
-		if vim.w.claude_info_split then
-			vim.api.nvim_win_close(0, false)
+		if vim.w.claude_info_sidebar then
+			pcall(vim.api.nvim_win_close, 0, false)
 			return
 		end
 		local ok = pcall(vim.cmd.buffer, "#")
@@ -211,8 +217,21 @@ local function create()
 	end, opts)
 end
 
+local function open_sidebar()
+	vim.cmd("topleft " .. SIDEBAR_WIDTH .. "vsplit")
+	vim.w.claude_info_sidebar = true
+	vim.api.nvim_win_set_buf(0, buf)
+	local wo = vim.wo[0][0]
+	wo.winfixwidth = true
+	wo.number = false
+	wo.relativenumber = false
+	wo.signcolumn = "no"
+	wo.wrap = false
+	wo.cursorline = true
+end
+
 --- Show the Claude info buffer (focus it if already visible)
----@param opts? { split?: boolean } split: below the current windows instead of replacing the current buffer
+---@param opts? { sidebar?: boolean } sidebar: a fixed-width window on the left instead of the current window
 function M.open(opts)
 	if not (buf and vim.api.nvim_buf_is_valid(buf)) then
 		create()
@@ -220,10 +239,8 @@ function M.open(opts)
 	local win = vim.fn.bufwinid(buf)
 	if win ~= -1 then
 		vim.api.nvim_set_current_win(win)
-	elseif opts and opts.split then
-		vim.cmd("botright " .. SPLIT_HEIGHT .. "split")
-		vim.w.claude_info_split = true
-		vim.api.nvim_win_set_buf(0, buf)
+	elseif opts and opts.sidebar then
+		open_sidebar()
 	else
 		vim.api.nvim_win_set_buf(0, buf)
 	end

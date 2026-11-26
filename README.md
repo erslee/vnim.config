@@ -2,7 +2,8 @@
 
 ## Claude mode (`vc`)
 
-`vc` opens a Neovim that holds only Claude Code terminals, plus an info split showing sessions, agents, loops and limits.
+`vc` opens a Neovim that holds only Claude Code terminals: an info sidebar on the left (sessions, agents, loops, limits)
+and one window on the right where the Claudes take turns. New Claudes open in that window instead of as splits.
 Claude mode remembers the Claudes per directory, so the next time you run `vc` in the same directory it brings them back.
 
 ### Setup
@@ -38,7 +39,7 @@ vc --model haiku --permission-mode auto    # arguments for a new Claude (used on
 ```
 
 - vc saves the open Claudes every 5 s and when Neovim exits. Each one is restored with `--resume <id>`, keeping its directory and the arguments it was started with.
-- When a Claude exits, its buffer and window close. When the last Claude exits, Neovim quits.
+- When a Claude exits, the right window shows another one. When the last Claude exits, Neovim quits.
 - Switching to a Claude window puts you in insert mode.
 - `caffeinate -i` keeps the Mac awake while vc runs; the tabline shows `awake` / `off`.
 
@@ -50,16 +51,17 @@ Press `<C-\>p` or `<leader>ap`, then paste a command like:
 cd ~/.poseidon-pr-autoreview && claude --model haiku --permission-mode auto /poseidon-pr-autoreview:start
 ```
 
-That opens a new Claude split in that directory with those arguments. The command must be `[cd <dir> &&] claude [args]` and contain only one `claude`, without `&&`, `;` or `|` after it.
+That opens a new Claude (in `vc`, in the right window) in that directory with those arguments. The command must be `[cd <dir> &&] claude [args]` and contain only one `claude`, without `&&`, `;` or `|` after it.
 
 ### Keys
 
 | Claude terminal | Normal mode   | Action                                   |
 | --------------- | ------------- | ---------------------------------------- |
-| `<C-\>n`        | `<leader>av`  | New Claude in a vertical split           |
+| `<C-\>n`        | `<leader>av`  | New Claude (split; in `vc` right window) |
+| `<C-\>N`        | `<leader>an`  | New Claude in the current window         |
 | `<C-\>p`        | `<leader>ap`  | New Claude from a pasted command         |
-| `<C-\>s`        | `<leader>aD`  | Info buffer (split / current window)     |
+| `<C-\>s`        | `<leader>aD`  | Info sidebar / info in current window    |
 | `<C-\>k`        | `<leader>ak`  | Toggle caffeinate (or click the tabline) |
 | `<C-h/j/k/l>`   | `<C-w>h/j/k/l` | Move between windows                    |
 
-Info buffer: `<CR>` jumps to the session, `n` opens a new Claude, `p` starts one from a command, `R` refreshes and `q` closes.
+Info sidebar (`▶` shown, `●` running hidden): `<CR>` shows that Claude in the right window, `n` opens a new Claude, `p` starts one from a command, `R` refreshes and `q` closes.
