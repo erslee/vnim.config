@@ -2,6 +2,8 @@
 local sessions = require("claude.sessions")
 local status = require("claude.status")
 local terminals = require("claude.terminals")
+local tmux = require("claude.tmux")
+local tree = require("claude.tree")
 
 local M = {}
 
@@ -12,7 +14,7 @@ local NS = vim.api.nvim_create_namespace("claude-dashboard")
 local STATE_HL = { working = "DiagnosticInfo", waiting = "DiagnosticWarn", idle = "Comment" }
 
 local buf, timer
-local targets = {} -- line number -> terminal buffer to show
+local targets = {} -- line number -> terminal buffer to show, or a Claude running in tmux to attach
 
 local function ago(timestamp)
 	local seconds = math.max(0, os.time() - (timestamp or os.time()))
@@ -29,59 +31,12 @@ local function clock(timestamp)
 	return os.date(same_day and "%H:%M" or "%a %H:%M", timestamp)
 end
 
--- Cut a row to the window width, ending with … where it was cut
-local function fit(row, width)
-	local fitted, used = {}, 0
-	for _, chunk in ipairs(row) do
-		local chunk_width = vim.fn.strdisplaywidth(chunk[1])
-		if used + chunk_width > width then
-			table.insert(fitted, { vim.fn.strcharpart(chunk[1], 0, math.max(0, width - used - 1)) .. "…", chunk[2] })
-			return fitted
-		end
-		used = used + chunk_width
-		table.insert(fitted, chunk)
-	end
-	return fitted
-end
-
--- Lines are lists of { text, highlight? } chunks, so highlights follow the text they belong to
-local function render_lines(rows, width)
-	local lines, marks = {}, {}
-	for index, row in ipairs(rows) do
-		local text, col = "", 0
-		for _, chunk in ipairs(fit(row, width)) do
-			if chunk[2] then
-				table.insert(marks, { index - 1, col, col + #chunk[1], chunk[2] })
-			end
-			text = text .. chunk[1]
-			col = col + #chunk[1]
-		end
-		lines[index] = text
-	end
-	return lines, marks
-end
-
--- Tree nodes: { line = chunks, details? = { chunks... }, children? = { nodes... }, target? = terminal buffer }
-local function add_tree(rows, nodes, prefix, target)
-	for index, node in ipairs(nodes) do
-		local last = index == #nodes
-		local node_target = node.target or target
-		table.insert(rows, vim.list_extend({ { prefix .. (last and "└─ " or "├─ "), "NonText" } }, node.line))
-		targets[#rows] = node_target
-		local inner = prefix .. (last and "   " or "│  ")
-		local has_children = node.children and #node.children > 0
-		for _, detail in ipairs(node.details or {}) do
-			table.insert(rows, vim.list_extend({ { inner .. (has_children and "│ " or "  "), "NonText" } }, detail))
-			targets[#rows] = node_target
-		end
-		add_tree(rows, node.children or {}, inner, node_target)
-	end
-end
-
 -- A session: its name, then directory and model/context/cost/age, with its agents and loops as children.
--- ▶ marks a Claude shown in a window, ● one running hidden in this Neovim.
-local function session_node(session, live_buf)
-	local marker = not live_buf and "  " or vim.fn.bufwinid(live_buf) ~= -1 and "\u{25b6} " or "\u{25cf} "
+-- ▶ marks a Claude shown in a window, ● one running hidden in this Neovim, ○ one running in tmux that <CR> attaches.
+local function session_node(session, live_buf, running)
+	local marker = live_buf and (vim.fn.bufwinid(live_buf) ~= -1 and "\u{25b6} " or "\u{25cf} ")
+		or running and "\u{25cb} "
+		or "  "
 	local dir = vim.fn.fnamemodify(session.cwd or "?", ":~")
 	local children = {}
 	for _, agent in ipairs(session.agents) do
@@ -101,7 +56,8 @@ local function session_node(session, live_buf)
 		})
 	end
 	return {
-		target = live_buf,
+		target = live_buf
+			or running and { term_id = session.term, session_id = session.session_id, cwd = running.cwd, launch = running.launch },
 		line = {
 			{ marker, "DiagnosticOk" },
 			{ (status.STATE_ICONS[session.state] or " ") .. " ", STATE_HL[session.state] },
@@ -121,10 +77,10 @@ local function session_node(session, live_buf)
 end
 
 -- Sessions without loops first, then the looping ones on their own branch
-local function group_nodes(members, live_bufs)
+local function group_nodes(members, live_bufs, running)
 	local nodes, looping = {}, {}
 	for _, session in ipairs(members) do
-		local node = session_node(session, live_bufs[session.session_id])
+		local node = session_node(session, live_bufs[session.session_id], running[session.term])
 		table.insert(#session.loops > 0 and looping or nodes, node)
 	end
 	if #looping > 0 then
@@ -166,21 +122,30 @@ local function build(width)
 		{ ("%d waiting"):format(counts.waiting), STATE_HL.waiting },
 	})
 	table.insert(rows, { { (" %d idle · %d agents · %d loops"):format(counts.idle, agents, loops) } })
-	for _, group in ipairs({ { "This Neovim", true }, { "Elsewhere", false } }) do
+	-- Background: Claudes still running in tmux that no Neovim shows (their `vc` was closed)
+	local running = tmux.sessions()
+	local function group_of(session)
+		if live_bufs[session.session_id] then
+			return "This Neovim"
+		end
+		local tmux_session = running[session.term or ""]
+		return tmux_session and tmux_session.clients == 0 and "Background" or "Elsewhere"
+	end
+	for _, group in ipairs({ "This Neovim", "Background", "Elsewhere" }) do
 		local members = vim.tbl_filter(function(session)
-			return (live_bufs[session.session_id] ~= nil) == group[2]
+			return group_of(session) == group
 		end, all)
 		if #members > 0 then
 			table.insert(rows, {})
-			table.insert(rows, { { " " .. group[1], "Title" } })
-			add_tree(rows, group_nodes(members, live_bufs), " ")
+			table.insert(rows, { { " " .. group, "Title" } })
+			tree.add(rows, targets, group_nodes(members, live_bufs, running), " ")
 		end
 	end
 	if #all == 0 then
 		table.insert(rows, {})
 		table.insert(rows, { { " No Claude sessions in the last 12h", "Comment" } })
 	end
-	return render_lines(rows, width)
+	return tree.render_lines(rows, width)
 end
 
 local function render()
@@ -220,7 +185,11 @@ local function show()
 		vim.notify("This session is not running in this Neovim", vim.log.levels.INFO)
 		return
 	end
-	terminals.show(target)
+	if type(target) == "table" then
+		terminals.attach(target)
+	else
+		terminals.show(target)
+	end
 	render()
 end
 

@@ -26,7 +26,7 @@ automatic sessions and a deep Claude Code integration, including a dedicated Cla
 
 ## Requirements
 
-Neovim 0.12+, git, a Nerd Font, [ripgrep](https://github.com/BurntSushi/ripgrep), [jq](https://jqlang.github.io/jq/),
+Neovim 0.12+, git, a Nerd Font, tmux (optional, keeps `vc` Claudes running), [ripgrep](https://github.com/BurntSushi/ripgrep), [jq](https://jqlang.github.io/jq/),
 [yazi](https://yazi-rs.github.io/), [lazygit](https://github.com/jesseduffield/lazygit) and the [Claude Code](https://docs.claude.com/en/docs/claude-code) CLI.
 LSP servers, formatters and debuggers are installed by Mason on first start.
 
@@ -195,14 +195,19 @@ buffer and session restore all read what it records.
 └────────────────────────────────────────────┘
 ```
 
-- **Info sidebar** on the left: the session tree described above. `▶` marks the Claude on screen, `●` one running hidden.
+- **Info sidebar** on the left: the session tree described above. `▶` marks the Claude on screen, `●` one running hidden,
+  `○` one running in the background.
   `<CR>` shows that Claude on the right, `n` opens a new Claude, `p` one from a command, `R` refreshes, `q` closes.
 - **One Claude window** on the right where the Claudes take turns; new Claudes open there instead of as splits.
   When the Claude on screen exits, the window shows another one; when the last one exits, Neovim quits.
 - **Token usage chart** across the bottom: tokens over the last 24h for all sessions (input + output + cache writes),
   rescanned every minute. `R` rescans now, `q` closes it.
-- **Restore per directory**: the open Claudes are saved every 5 s and on exit; the next `vc` in the same directory resumes
-  each one (`--resume <id>`) with its directory and the arguments it was started with.
+- **Claudes outlive `vc`** (when tmux is installed): each Claude runs in a hidden tmux session (own server, no status bar,
+  no prefix or key bindings), and the `vc` window only shows it. Closing `vc` leaves Claude working and its loops firing.
+  The sidebar lists such Claudes under **Background** (`○`); `<CR>` brings one into this `vc`. `/exit` ends a Claude for good.
+  Without tmux, Claudes run as plain terminals and stop with `vc`.
+- **Restore per directory**: the open Claudes are saved every 5 s and on exit; the next `vc` in the same directory attaches
+  to the ones still running and resumes the others (`--resume <id>`) with their directory and launch arguments.
 - **Keeps the Mac awake**: `caffeinate -i` runs while `vc` is open; the tabline shows `awake` / `off`, and `Ctrl-\ k`,
   `<leader>ak` or a click on it toggles it.
 

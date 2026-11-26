@@ -1,5 +1,6 @@
 -- Claude terminals opened from this Neovim, each tagged so its session id can be found
 local sessions = require("claude.sessions")
+local tmux = require("claude.tmux")
 
 local M = {}
 
@@ -115,14 +116,31 @@ local function setup_buffer(buf)
 	end, { buffer = buf, desc = "Claude info" })
 end
 
---- Open a new Claude connected to Neovim's IDE server
+-- In `vc` with tmux, a Claude runs in its own hidden tmux session and the terminal only shows it,
+-- so it keeps running when this Neovim closes; otherwise the terminal runs Claude itself
+local function claude_command(term_id, opts, env)
+	local args = opts.args or opts.launch
+	local command = "claude" .. (args and (" " .. args) or "")
+	if not (shared_window() and tmux.available()) then
+		return command, env
+	end
+	if opts.term_id or tmux.start(term_id, command, opts.cwd or vim.fn.getcwd(), env, opts.launch) then
+		return tmux.attach_command(term_id), nil
+	end
+	return command, env
+end
+
+--- Open a new Claude connected to Neovim's IDE server, or (term_id) show a Claude still running in tmux
 ---@param layout "vertical"|"horizontal"
 --- here (and always in `vc`): in the current window, or the Claude window when in the info sidebar; else a split
----@param opts? { args?: string, launch?: string, cwd?: string, focus?: boolean, session_id?: string, here?: boolean }
+---@param opts? { args?: string, launch?: string, cwd?: string, focus?: boolean, session_id?: string, here?: boolean, term_id?: string }
 function M.open(layout, opts)
 	opts = opts or {}
-	counter = counter + 1
-	local term_id = ("%d-%d"):format(vim.fn.getpid(), counter)
+	local term_id = opts.term_id
+	if not term_id then
+		counter = counter + 1
+		term_id = ("%d-%d"):format(vim.fn.getpid(), counter)
+	end
 	local previous_win = vim.api.nvim_get_current_win()
 
 	vim.api.nvim_set_current_win(M.claude_window())
@@ -132,12 +150,11 @@ function M.open(layout, opts)
 		vim.cmd(layout == "vertical" and "vertical rightbelow new" or "horizontal rightbelow new")
 	end
 	local buf = vim.api.nvim_get_current_buf()
-	local args = opts.args or opts.launch
-	local cmd = "claude" .. (args and (" " .. args) or "")
+	local cmd, env = claude_command(term_id, opts, ide_env(term_id))
 	vim.fn.jobstart(cmd, {
 		term = true,
 		cwd = opts.cwd,
-		env = ide_env(term_id),
+		env = env,
 		on_exit = function()
 			vim.schedule(function()
 				close_exited(buf)
@@ -202,13 +219,44 @@ end
 --- What a restore needs, for every live terminal
 function M.snapshot()
 	return vim.tbl_map(function(term)
-		return { layout = term.layout, session_id = term.session_id, launch = term.launch, cwd = term.cwd }
+		return {
+			layout = term.layout,
+			session_id = term.session_id,
+			launch = term.launch,
+			cwd = term.cwd,
+			term_id = term.term_id,
+		}
 	end, M.live())
 end
 
---- Reopen a saved terminal, resuming its conversation with the arguments it was launched with
----@param saved { layout?: string, session_id?: string, launch?: string, cwd?: string }
+--- Show a Claude still running in tmux (focus it when this Neovim already shows it)
+---@param saved { term_id: string, session_id?: string, launch?: string, cwd?: string }
+---@param opts? { focus?: boolean }
+function M.attach(saved, opts)
+	local term = terms[saved.term_id]
+	if term and vim.api.nvim_buf_is_valid(term.buf) then
+		if not (opts and opts.focus == false) then
+			M.show(term.buf)
+		end
+		return
+	end
+	M.open("vertical", {
+		term_id = saved.term_id,
+		launch = saved.launch,
+		cwd = saved.cwd,
+		session_id = saved.session_id,
+		focus = opts and opts.focus,
+	})
+end
+
+--- Reopen a saved terminal: attach to it if it still runs in tmux, else resume its conversation
+--- with the arguments it was launched with
+---@param saved { layout?: string, session_id?: string, launch?: string, cwd?: string, term_id?: string }
 function M.restore(saved)
+	if saved.term_id and shared_window() and tmux.sessions()[saved.term_id] then
+		M.attach(saved, { focus = false })
+		return
+	end
 	local resume = saved.session_id and ("--resume " .. saved.session_id) or "--continue"
 	local args = resume .. (saved.launch and (" " .. saved.launch) or "")
 	if saved.layout == "main" then
