@@ -28,7 +28,8 @@ local function save()
 	vim.fn.writefile({ vim.json.encode(all) }, STATE_FILE)
 end
 
---- Restore this directory's Claude sessions (or start a new Claude) in one window, with the info sidebar on the left.
+--- Restore this directory's Claude sessions (or start a new Claude) in one window,
+--- with the info sidebar on the left and the token usage chart at the bottom.
 --- `vc <claude args>` passes its arguments in CLAUDE_MODE_ARGS; they are used only when nothing is saved.
 function M.start()
 	local launch = vim.env.CLAUDE_MODE_ARGS
@@ -42,8 +43,10 @@ function M.start()
 	else
 		terminals.open("vertical", { focus = false, launch = launch ~= "" and launch or nil })
 	end
+	-- Sidebar first so it spans the full height; the usage chart then spans the full width below
 	require("claude.dashboard").open({ sidebar = true })
-	vim.cmd.wincmd("p")
+	require("claude.usage").open()
+	vim.api.nvim_set_current_win(terminals.claude_window())
 	vim.cmd.startinsert()
 
 	local timer = vim.uv.new_timer()

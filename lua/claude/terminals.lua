@@ -32,9 +32,10 @@ local function usable(win)
 	return vim.api.nvim_win_is_valid(win)
 		and vim.api.nvim_win_get_config(win).relative == ""
 		and not vim.w[win].claude_info_sidebar
+		and not vim.w[win].claude_usage
 end
 
---- The window to show a Claude in: the current one unless it is the info sidebar
+--- The window to show a Claude in: the current one unless it is the info sidebar or the usage chart
 function M.claude_window()
 	local current = vim.api.nvim_get_current_win()
 	if usable(current) then

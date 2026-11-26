@@ -4,6 +4,7 @@
 
 `vc` opens a Neovim that holds only Claude Code terminals: an info sidebar on the left (sessions, agents, loops, limits)
 and one window on the right where the Claudes take turns. New Claudes open in that window instead of as splits.
+Across the bottom, a chart shows token usage over the last 24h for all sessions (input + output + cache writes).
 Claude mode remembers the Claudes per directory, so the next time you run `vc` in the same directory it brings them back.
 
 ### Setup
@@ -65,3 +66,5 @@ That opens a new Claude (in `vc`, in the right window) in that directory with th
 | `<C-h/j/k/l>`   | `<C-w>h/j/k/l` | Move between windows                    |
 
 Info sidebar (`▶` shown, `●` running hidden): `<CR>` shows that Claude in the right window, `n` opens a new Claude, `p` starts one from a command, `R` refreshes and `q` closes.
+
+Usage chart: `R` rescans now (otherwise every minute) and `q` closes it.

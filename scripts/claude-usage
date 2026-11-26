@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Claude token usage per minute, from every transcript in ~/.claude/projects (all sessions and subagents).
+# Prints a JSON array of MINUTES numbers, oldest first: input + output + cache-write tokens (cache reads left out).
+#   claude-usage [MINUTES=1440]
+set -u
+
+minutes=${1:-1440}
+now=$(date +%s)
+
+# A reply is written on several lines (one per content block) with the same usage: count each message id once
+find "$HOME/.claude/projects" -name '*.jsonl' -mmin "-$minutes" -exec rg -N --no-filename '"usage"' {} + 2>/dev/null |
+	jq -nRc --argjson now "$now" --argjson minutes "$minutes" '
+		reduce (inputs | fromjson? | select(.type == "assistant" and .message.usage and .timestamp)) as $m (
+			{ seen: {}, buckets: [range($minutes) | 0] };
+			(($now - ($m.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdate)) / 60 | floor) as $age
+			| ($m.message.id // $m.uuid) as $id
+			| if $age < 0 or $age >= $minutes or .seen[$id] then .
+			  else
+				.seen[$id] = true
+				| .buckets[$minutes - 1 - $age] += ($m.message.usage
+					| (.input_tokens // 0) + (.output_tokens // 0) + (.cache_creation_input_tokens // 0))
+			  end
+		)
+		| .buckets'
