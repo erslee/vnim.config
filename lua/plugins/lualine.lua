@@ -219,6 +219,20 @@ return {
           "lsp_progress",
           {
             function()
+              return require("claude.caffeinate").status()
+            end,
+            cond = function()
+              return require("claude.caffeinate").visible()
+            end,
+            color = function()
+              return require("claude.caffeinate").status_color()
+            end,
+            on_click = function()
+              require("claude.caffeinate").toggle()
+            end,
+          },
+          {
+            function()
               return require("session.autosave").status()
             end,
             cond = function()

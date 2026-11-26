@@ -2,9 +2,7 @@
 vim.opt.sessionoptions = { "buffers", "curdir", "folds", "globals", "help", "tabpages", "winsize" }
 
 local function save_claude_terminals()
-	local saved = vim.tbl_map(function(term)
-		return { layout = term.layout, session_id = term.session_id }
-	end, require("claude.terminals").live())
+	local saved = require("claude.terminals").snapshot()
 	vim.g.ClaudeTerms = #saved > 0 and vim.json.encode(saved) or nil
 end
 
@@ -70,6 +68,12 @@ return {
 			group = group,
 			nested = true,
 			callback = function()
+				-- `vc` (Claude mode) restores its own Claude terminals and must not touch the editor session
+				if vim.g.claude_mode == 1 then
+					persistence.stop()
+					require("claude.mode").start()
+					return
+				end
 				if vim.fn.argc() == 0 and not vim.g.started_with_stdin and #vim.api.nvim_list_uis() > 0 then
 					autosave.enable()
 					persistence.load()

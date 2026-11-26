@@ -23,6 +23,38 @@ write_meta() {
 		'{session_id, cwd, nvim: $nvim, term: $term}' <<<"$input")"
 }
 
+# Loops: /loop and scheduled prompts, from the tools that create and cancel them
+record_loop() {
+	local id
+	mkdir -p "$base.loops"
+	case "$(jq -r '.tool_name' <<<"$input")" in
+	CronCreate)
+		id=$(jq -r '.tool_response.id // empty' <<<"$input")
+		[ -n "$id" ] && write "$base.loops/$id" "$(jq -c '{
+			kind: "cron",
+			schedule: (.tool_response.humanSchedule // .tool_input.cron),
+			prompt: .tool_input.prompt,
+			recurring: .tool_input.recurring,
+			next: ((.tool_response.nextFireAt // 0) / 1000 | floor)
+		}' <<<"$input")"
+		;;
+	CronDelete) rm -f "$base.loops/$(jq -r '.tool_input.id' <<<"$input")" ;;
+	ScheduleWakeup)
+		if [ "$(jq -r '.tool_input.stop // false' <<<"$input")" = true ]; then
+			rm -f "$base.loops/wakeup"
+		else
+			write "$base.loops/wakeup" "$(jq -c --argjson now "$(date +%s)" '{
+				kind: "wakeup",
+				schedule: "self-paced",
+				prompt: .tool_input.prompt,
+				reason: .tool_input.reason,
+				next: ($now + (.tool_input.delaySeconds // 0))
+			}' <<<"$input")"
+		fi
+		;;
+	esac
+}
+
 case "${1:-}" in
 statusline)
 	write "$base.status.json" "$(jq -c '{
@@ -45,7 +77,11 @@ hook)
 		write_meta
 		write "$base.state" idle
 		;;
-	UserPromptSubmit | PostToolUse) write "$base.state" working ;;
+	UserPromptSubmit) write "$base.state" working ;;
+	PostToolUse)
+		write "$base.state" working
+		record_loop
+		;;
 	Notification)
 		case "$(jq -r '.notification_type // empty' <<<"$input")" in
 		permission_prompt | elicitation*) write "$base.state" waiting ;;
@@ -55,10 +91,11 @@ hook)
 	Stop) write "$base.state" idle ;;
 	SubagentStart)
 		mkdir -p "$base.agents"
-		: >"$base.agents/$(jq -r '.agent_id' <<<"$input")"
+		write "$base.agents/$(jq -r '.agent_id' <<<"$input")" \
+			"$(jq -c --argjson now "$(date +%s)" '{type: .agent_type, started: $now}' <<<"$input")"
 		;;
 	SubagentStop) rm -f "$base.agents/$(jq -r '.agent_id' <<<"$input")" ;;
-	SessionEnd) rm -rf "$base.meta.json" "$base.status.json" "$base.state" "$base.agents" ;;
+	SessionEnd) rm -rf "$base.meta.json" "$base.status.json" "$base.state" "$base.agents" "$base.loops" ;;
 	esac
 	;;
 esac

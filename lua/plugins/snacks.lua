@@ -15,6 +15,7 @@ return {
 				},
 			},
 			dashboard = {
+				enabled = vim.g.claude_mode ~= 1, -- `vc` opens Claude instead
 				header = true,
 				keys = true,
 				projects = true,

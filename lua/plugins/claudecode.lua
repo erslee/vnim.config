@@ -37,11 +37,25 @@ return {
 			desc = "New Claude (horizontal split)",
 		},
 		{
+			"<leader>ap",
+			function()
+				require("claude.launch").prompt()
+			end,
+			desc = "New Claude from command ([cd dir &&] claude args)",
+		},
+		{
+			"<leader>ak",
+			function()
+				require("claude.caffeinate").toggle()
+			end,
+			desc = "Toggle caffeinate (keep Mac awake)",
+		},
+		{
 			"<leader>aD",
 			function()
-				require("claude.status").dashboard()
+				require("claude.dashboard").open()
 			end,
-			desc = "Claude sessions dashboard",
+			desc = "Claude info (sessions, agents, loops)",
 		},
 	},
 }

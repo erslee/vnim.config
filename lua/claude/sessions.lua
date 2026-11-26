@@ -29,14 +29,25 @@ local function mtime(path)
 	return stat and stat.mtime.sec or 0
 end
 
-local function count_entries(path)
-	local count = 0
+-- One JSON file per entry (agents, loops); older agent files are empty, so default to {}
+local function read_entries(path)
+	local entries = {}
 	if vim.uv.fs_stat(path) then
-		for _ in vim.fs.dir(path) do
-			count = count + 1
+		for name in vim.fs.dir(path) do
+			local entry = read_json(path .. "/" .. name) or {}
+			entry.id = name
+			table.insert(entries, entry)
 		end
 	end
-	return count
+	return entries
+end
+
+-- A one-shot cron is gone once it has fired, and no hook reports that
+local function active_loops(loops)
+	local now = os.time()
+	return vim.tbl_filter(function(loop)
+		return loop.recurring ~= false or (loop.next or 0) > now
+	end, loops)
 end
 
 local function load(session_id)
@@ -54,7 +65,8 @@ local function load(session_id)
 		context = status.context,
 		cost = status.cost,
 		rate_limits = status.rate_limits,
-		agents = count_entries(base .. ".agents"),
+		agents = read_entries(base .. ".agents"),
+		loops = active_loops(read_entries(base .. ".loops")),
 		updated = math.max(mtime(base .. ".meta.json"), mtime(base .. ".state"), mtime(base .. ".status.json")),
 	}
 end
