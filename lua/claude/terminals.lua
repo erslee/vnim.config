@@ -17,6 +17,8 @@ local function ide_env(term_id)
 	require("lazy").load({ plugins = { "claudecode.nvim" } })
 	local port = require("claudecode").state.port
 	return {
+		-- tmux sessions get the tmux server's env, not this Neovim's: pass the config dir explicitly
+		CLAUDE_CONFIG_DIR = vim.env.CLAUDE_CONFIG_DIR,
 		CLAUDE_CODE_SSE_PORT = port and tostring(port) or nil,
 		ENABLE_IDE_INTEGRATION = "true",
 		FORCE_CODE_TERMINAL = "true",
@@ -124,7 +126,9 @@ local function claude_command(term_id, opts, env)
 	if not (shared_window() and tmux.available()) then
 		return command, env
 	end
-	if opts.term_id or tmux.start(term_id, command, opts.cwd or vim.fn.getcwd(), env, opts.launch) then
+	-- Unset here: don't inherit a config dir the tmux server captured from another shell
+	local tmux_command = env.CLAUDE_CONFIG_DIR and command or ("env -u CLAUDE_CONFIG_DIR " .. command)
+	if opts.term_id or tmux.start(term_id, tmux_command, opts.cwd or vim.fn.getcwd(), env, opts.launch) then
 		return tmux.attach_command(term_id), nil
 	end
 	return command, env
