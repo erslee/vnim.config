@@ -20,14 +20,24 @@ end
 
 --- Start a Claude command in a detached session; true when it is running.
 --- Its launch arguments are kept on the session, so another `vc` attaching to it can restore it the same way.
+--- Panes Claude opens later (agent-team teammates) get the session's env on top of the server's, which
+--- holds whatever the shell that started the server had: `env` is set on the session, and `unset`
+--- names are removed from the first process and from every later pane.
 ---@param env table<string, string>
-function M.start(term_id, command, cwd, env, launch)
+---@param unset? string[]
+function M.start(term_id, command, cwd, env, launch, unset)
 	local name = session_name(term_id)
 	local args = { "new-session", "-d", "-s", name, "-c", cwd }
 	for key, value in pairs(env) do
 		vim.list_extend(args, { "-e", key .. "=" .. value })
 	end
+	for _, key in ipairs(unset or {}) do
+		command = "env -u " .. key .. " " .. command
+	end
 	vim.list_extend(args, { command, ";", "set-option", "-t", name, "@launch", launch or "" })
+	for _, key in ipairs(unset or {}) do
+		vim.list_extend(args, { ";", "set-environment", "-t", name, "-r", key })
+	end
 	return vim.system(tmux(args)):wait().code == 0
 end
 

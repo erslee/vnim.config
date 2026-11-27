@@ -127,8 +127,8 @@ local function claude_command(term_id, opts, env)
 		return command, env
 	end
 	-- Unset here: don't inherit a config dir the tmux server captured from another shell
-	local tmux_command = env.CLAUDE_CONFIG_DIR and command or ("env -u CLAUDE_CONFIG_DIR " .. command)
-	if opts.term_id or tmux.start(term_id, tmux_command, opts.cwd or vim.fn.getcwd(), env, opts.launch) then
+	local unset = not env.CLAUDE_CONFIG_DIR and { "CLAUDE_CONFIG_DIR" } or nil
+	if opts.term_id or tmux.start(term_id, command, opts.cwd or vim.fn.getcwd(), env, opts.launch, unset) then
 		return tmux.attach_command(term_id), nil
 	end
 	return command, env
