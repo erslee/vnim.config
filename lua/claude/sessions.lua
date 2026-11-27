@@ -1,4 +1,6 @@
 -- Reads Claude session state written by scripts/claude-status
+local profiles = require("claude.profiles")
+
 local M = {}
 
 local MAX_AGE_SEC = 12 * 3600
@@ -50,16 +52,6 @@ local function active_loops(loops)
 	end, loops)
 end
 
--- Short name of a config dir: "~/.claude_mts" -> "mts"; the default ~/.claude, and sessions
--- recorded before config_dir was, have none
-local function profile_of(config_dir)
-	if not config_dir then
-		return nil
-	end
-	local name = vim.fn.fnamemodify((config_dir:gsub("/+$", "")), ":t"):gsub("^%.?claude[-_.]?", "")
-	return name ~= "" and name or nil
-end
-
 local function load(session_id)
 	local base = M.dir .. "/" .. session_id
 	local meta = read_json(base .. ".meta.json") or {}
@@ -74,7 +66,9 @@ local function load(session_id)
 		cwd = meta.cwd,
 		nvim = meta.nvim,
 		term = meta.term,
-		profile = profile_of(meta.config_dir),
+		-- Sessions recorded before config_dir was have neither
+		config_dir = meta.config_dir,
+		profile = profiles.name(meta.config_dir),
 		state = state,
 		model = status.model,
 		context = status.context,

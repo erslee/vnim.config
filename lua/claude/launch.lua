@@ -55,7 +55,7 @@ function M.prompt()
 			vim.notify(err, vim.log.levels.ERROR)
 			return
 		end
-		terminals.open("vertical", { cwd = parsed.cwd, launch = parsed.launch })
+		terminals.new("vertical", { cwd = parsed.cwd, launch = parsed.launch })
 	end)
 end
 

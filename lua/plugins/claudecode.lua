@@ -25,21 +25,21 @@ return {
 		{
 			"<leader>av",
 			function()
-				require("claude.terminals").open("vertical")
+				require("claude.terminals").new("vertical")
 			end,
 			desc = "New Claude (vertical split)",
 		},
 		{
 			"<leader>an",
 			function()
-				require("claude.terminals").open("vertical", { here = true })
+				require("claude.terminals").new("vertical", { here = true })
 			end,
 			desc = "New Claude (current window)",
 		},
 		{
 			"<leader>ah",
 			function()
-				require("claude.terminals").open("horizontal")
+				require("claude.terminals").new("horizontal")
 			end,
 			desc = "New Claude (horizontal split)",
 		},

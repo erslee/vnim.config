@@ -1,4 +1,5 @@
 -- Claude terminals opened from this Neovim, each tagged so its session id can be found
+local profiles = require("claude.profiles")
 local sessions = require("claude.sessions")
 local tmux = require("claude.tmux")
 
@@ -7,18 +8,24 @@ local M = {}
 -- Must match the env passed to claudecode.nvim's own terminal (lua/plugins/claudecode.lua)
 M.MAIN_TERM_ID = "main-" .. vim.fn.getpid()
 
--- term_id -> { buf, layout = "vertical" | "horizontal", session_id?, launch? (claude args to reuse on restore), cwd? }
+-- term_id -> { buf, layout = "vertical" | "horizontal", session_id?, launch? (claude args to reuse on restore), cwd?,
+-- config_dir? (profile it was started with) }
 local terms = {}
 local counter = 0
 -- Session id a terminal was resumed with: covers the gap before its hooks report again
 local main_resumed_session_id
 
-local function ide_env(term_id)
+--- config_dir: the profile to start with; nil keeps this Neovim's
+local function ide_env(term_id, config_dir)
 	require("lazy").load({ plugins = { "claudecode.nvim" } })
 	local port = require("claudecode").state.port
+	local config_env = vim.env.CLAUDE_CONFIG_DIR
+	if config_dir then
+		config_env = profiles.env_value(config_dir)
+	end
 	return {
 		-- tmux sessions get the tmux server's env, not this Neovim's: pass the config dir explicitly
-		CLAUDE_CONFIG_DIR = vim.env.CLAUDE_CONFIG_DIR,
+		CLAUDE_CONFIG_DIR = config_env,
 		CLAUDE_CODE_SSE_PORT = port and tostring(port) or nil,
 		ENABLE_IDE_INTEGRATION = "true",
 		FORCE_CODE_TERMINAL = "true",
@@ -102,10 +109,10 @@ local function setup_buffer(buf)
 		end,
 	})
 	vim.keymap.set("t", "<C-\\>n", function()
-		M.open("vertical")
+		M.new("vertical")
 	end, { buffer = buf, desc = "New Claude" })
 	vim.keymap.set("t", "<C-\\>N", function()
-		M.open("vertical", { here = true })
+		M.new("vertical", { here = true })
 	end, { buffer = buf, desc = "New Claude in this window" })
 	vim.keymap.set("t", "<C-\\>p", function()
 		require("claude.launch").prompt()
@@ -123,21 +130,23 @@ end
 local function claude_command(term_id, opts, env)
 	local args = opts.args or opts.launch
 	local command = "claude" .. (args and (" " .. args) or "")
-	if not (shared_window() and tmux.available()) then
-		return command, env
-	end
-	-- Unset here: don't inherit a config dir the tmux server captured from another shell
+	-- No config dir means ~/.claude, which needs CLAUDE_CONFIG_DIR unset: this Neovim
+	-- or the tmux server may have another one
 	local unset = not env.CLAUDE_CONFIG_DIR and { "CLAUDE_CONFIG_DIR" } or nil
+	local plain_command = unset and ("env -u CLAUDE_CONFIG_DIR " .. command) or command
+	if not (shared_window() and tmux.available()) then
+		return plain_command, env
+	end
 	if opts.term_id or tmux.start(term_id, command, opts.cwd or vim.fn.getcwd(), env, opts.launch, unset) then
 		return tmux.attach_command(term_id), nil
 	end
-	return command, env
+	return plain_command, env
 end
 
 --- Open a new Claude connected to Neovim's IDE server, or (term_id) show a Claude still running in tmux
 ---@param layout "vertical"|"horizontal"
 --- here (and always in `vc`): in the current window, or the Claude window when in the info sidebar; else a split
----@param opts? { args?: string, launch?: string, cwd?: string, focus?: boolean, session_id?: string, here?: boolean, term_id?: string }
+---@param opts? { args?: string, launch?: string, cwd?: string, focus?: boolean, session_id?: string, here?: boolean, term_id?: string, config_dir?: string }
 function M.open(layout, opts)
 	opts = opts or {}
 	local term_id = opts.term_id
@@ -154,7 +163,7 @@ function M.open(layout, opts)
 		vim.cmd(layout == "vertical" and "vertical rightbelow new" or "horizontal rightbelow new")
 	end
 	local buf = vim.api.nvim_get_current_buf()
-	local cmd, env = claude_command(term_id, opts, ide_env(term_id))
+	local cmd, env = claude_command(term_id, opts, ide_env(term_id, opts.config_dir))
 	vim.fn.jobstart(cmd, {
 		term = true,
 		cwd = opts.cwd,
@@ -166,7 +175,14 @@ function M.open(layout, opts)
 		end,
 	})
 
-	terms[term_id] = { buf = buf, layout = layout, session_id = opts.session_id, launch = opts.launch, cwd = opts.cwd }
+	terms[term_id] = {
+		buf = buf,
+		layout = layout,
+		session_id = opts.session_id,
+		launch = opts.launch,
+		cwd = opts.cwd,
+		config_dir = opts.config_dir,
+	}
 	vim.api.nvim_create_autocmd("BufWipeout", {
 		buffer = buf,
 		once = true,
@@ -181,6 +197,15 @@ function M.open(layout, opts)
 	else
 		vim.cmd.startinsert()
 	end
+end
+
+--- Start a new Claude, first asking which profile (config dir) when there is more than one
+---@param layout "vertical"|"horizontal"
+---@param opts? { launch?: string, cwd?: string, here?: boolean, focus?: boolean }
+function M.new(layout, opts)
+	profiles.choose(function(config_dir)
+		M.open(layout, vim.tbl_extend("force", opts or {}, { config_dir = config_dir }))
+	end)
 end
 
 local function main_terminal_buf()
@@ -205,6 +230,8 @@ function M.live()
 				session_id = session and session.session_id or term.session_id,
 				launch = term.launch,
 				cwd = term.cwd,
+				-- Resume finds a session only in the config dir it was created in
+				config_dir = session and session.config_dir or term.config_dir,
 			})
 		end
 	end
@@ -229,6 +256,7 @@ function M.snapshot()
 			launch = term.launch,
 			cwd = term.cwd,
 			term_id = term.term_id,
+			config_dir = term.config_dir,
 		}
 	end, M.live())
 end
@@ -255,7 +283,7 @@ end
 
 --- Reopen a saved terminal: attach to it if it still runs in tmux, else resume its conversation
 --- with the arguments it was launched with
----@param saved { layout?: string, session_id?: string, launch?: string, cwd?: string, term_id?: string }
+---@param saved { layout?: string, session_id?: string, launch?: string, cwd?: string, term_id?: string, config_dir?: string }
 function M.restore(saved)
 	if saved.term_id and shared_window() and tmux.sessions()[saved.term_id] then
 		M.attach(saved, { focus = false })
@@ -273,6 +301,7 @@ function M.restore(saved)
 			launch = saved.launch,
 			cwd = saved.cwd,
 			session_id = saved.session_id,
+			config_dir = saved.config_dir,
 			focus = false,
 		})
 	end
