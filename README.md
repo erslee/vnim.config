@@ -142,6 +142,8 @@ Also `<leader>:` command history · `<leader>n` notification history · `<leader
 
 While typing in a Claude terminal: `Ctrl-\ n` new Claude in a split, `Ctrl-\ N` in this window, `Ctrl-\ p` from a command,
 `Ctrl-\ s` info sidebar, `Ctrl-\ k` caffeinate. Switching to a Claude puts you straight into typing.
+`Ctrl-Shift-[` / `Ctrl-Shift-]` show the previous / next Claude of this Neovim, from anywhere (needs a terminal with the
+kitty keyboard protocol, e.g. Ghostty, kitty or WezTerm; elsewhere they arrive as Esc and `Ctrl-]` and do nothing).
 
 ## Claude Code integration
 

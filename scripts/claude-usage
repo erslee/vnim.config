@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Claude token usage per minute, from every transcript in ~/.claude/projects (all sessions and subagents).
+# Claude token usage per minute, from every transcript in ~/.claude*/projects and $CLAUDE_CONFIG_DIR/projects
+# (all config dirs, sessions and subagents).
 # Prints a JSON array of MINUTES numbers, oldest first: input + output + cache-write tokens (cache reads left out).
 #   claude-usage [MINUTES=1440]
 set -u
@@ -7,8 +8,17 @@ set -u
 minutes=${1:-1440}
 now=$(date +%s)
 
+# Every config dir's projects folder, each once (CLAUDE_CONFIG_DIR may point at one of the globbed ones)
+dirs=()
+for dir in "$HOME"/.claude "$HOME"/.claude_* "$HOME"/.claude-* ${CLAUDE_CONFIG_DIR:+"$CLAUDE_CONFIG_DIR"}; do
+	[ -d "$dir/projects" ] || continue
+	real=$(cd "$dir/projects" && pwd -P)
+	case " ${dirs[*]-} " in *" $real "*) ;; *) dirs+=("$real") ;; esac
+done
+[ ${#dirs[@]} -gt 0 ] || { jq -nc --argjson minutes "$minutes" '[range($minutes) | 0]'; exit 0; }
+
 # A reply is written on several lines (one per content block) with the same usage: count each message id once
-find "$HOME/.claude/projects" -name '*.jsonl' -mmin "-$minutes" -exec rg -N --no-filename '"usage"' {} + 2>/dev/null |
+find "${dirs[@]}" -name '*.jsonl' -mmin "-$minutes" -exec rg -N --no-filename '"usage"' {} + 2>/dev/null |
 	jq -nRc --argjson now "$now" --argjson minutes "$minutes" '
 		reduce (inputs | fromjson? | select(.type == "assistant" and .message.usage and .timestamp)) as $m (
 			{ seen: {}, buckets: [range($minutes) | 0] };

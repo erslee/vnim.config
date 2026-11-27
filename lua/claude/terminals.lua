@@ -77,6 +77,35 @@ function M.show(buf)
 	vim.api.nvim_set_current_win(win)
 end
 
+--- Show the next (step 1) or previous (step -1) Claude of this Neovim, in the order they were opened
+function M.cycle(step)
+	local live = M.live()
+	if #live == 0 then
+		return
+	end
+	local current = vim.api.nvim_get_current_buf()
+	local index = 0
+	for i, term in ipairs(live) do
+		if term.buf == current then
+			index = i
+		end
+	end
+	-- Not in a Claude: next goes to the first, previous to the last
+	if index == 0 and step < 0 then
+		index = 1
+	end
+	M.show(live[(index - 1 + step) % #live + 1].buf)
+end
+
+-- Ctrl-Shift-[ / Ctrl-Shift-]: previous / next Claude, from anywhere. They reach Neovim only from terminals
+-- that send them as their own keys (kitty keyboard protocol); elsewhere they arrive as Esc and Ctrl-],
+-- which these maps don't match, so Esc keeps working in Claude.
+for lhs, step in pairs({ ["<C-S-[>"] = -1, ["<C-{>"] = -1, ["<C-S-]>"] = 1, ["<C-}>"] = 1 }) do
+	vim.keymap.set({ "n", "t" }, lhs, function()
+		M.cycle(step)
+	end, { desc = step > 0 and "Next Claude" or "Previous Claude" })
+end
+
 -- Exited Claude: drop its buffer (which closes its windows); `vc` shows another Claude in its window
 -- and quits with its last Claude
 local function close_exited(buf)
