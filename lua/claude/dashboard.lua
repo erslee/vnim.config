@@ -55,13 +55,15 @@ local function session_node(session, live_buf, running)
 			details = { { { (loop.prompt or ""):gsub("\n", " "), "String" } } },
 		})
 	end
+	-- The whole title takes the profile's color, so sessions of another config dir stand out
+	local title_hl = session.profile and status.profile_hl(session.profile) or "Bold"
 	local line = {
 		{ marker, "DiagnosticOk" },
 		{ (status.STATE_ICONS[session.state] or " ") .. " ", STATE_HL[session.state] },
-		{ session.title or vim.fn.fnamemodify(dir, ":t"), "Bold" },
+		{ session.title or vim.fn.fnamemodify(dir, ":t"), title_hl },
 	}
 	if session.profile then
-		table.insert(line, { " " .. session.profile, status.profile_hl(session.profile) })
+		table.insert(line, { " " .. session.profile, title_hl })
 	end
 	return {
 		target = live_buf
