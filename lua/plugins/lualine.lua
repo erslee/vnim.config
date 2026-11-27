@@ -35,6 +35,18 @@ return {
         return require("claude.status").statusline_color()
       end,
     }
+    -- Config dir of that Claude ("mts" for ~/.claude_mts), when it isn't ~/.claude
+    local claude_profile = {
+      function()
+        return require("claude.status").profile() or ""
+      end,
+      cond = function()
+        return require("claude.status").profile() ~= nil
+      end,
+      color = function()
+        return require("claude.status").profile_badge_color()
+      end,
+    }
 
     require("lualine").setup({
       options = {
@@ -105,6 +117,7 @@ return {
           "selectioncount",
         },
         lualine_x = {
+          claude_profile,
           claude_status,
           {
             function()
@@ -167,7 +180,7 @@ return {
           "diff",
           "diagnostics",
         },
-        lualine_x = { claude_status, "location" },
+        lualine_x = { claude_profile, claude_status, "location" },
         lualine_y = {},
         lualine_z = {},
       },

@@ -6,6 +6,24 @@ local M = {}
 
 local REFRESH_MS = 2000
 M.STATE_ICONS = { working = "\u{f110}", waiting = "\u{f071}", idle = "\u{f186}" }
+-- Profiles (config dirs other than ~/.claude) get a color picked from their name, the same everywhere.
+-- Orange stays free for "waiting".
+local PROFILE_COLORS = { "#8BE9FD", "#BD93F9", "#FF79C6", "#50FA7B", "#F1FA8C" }
+
+function M.profile_color(profile)
+	local sum = 0
+	for i = 1, #profile do
+		sum = sum + profile:byte(i)
+	end
+	return PROFILE_COLORS[sum % #PROFILE_COLORS + 1]
+end
+
+--- Highlight group for a profile's badge; set on every call so a colorscheme change can't clear it
+function M.profile_hl(profile)
+	local name = "ClaudeProfile_" .. profile:gsub("[^%w]", "_")
+	vim.api.nvim_set_hl(0, name, { fg = M.profile_color(profile), bold = true })
+	return name
+end
 
 function M.percent(value)
 	return value and ("%d%%"):format(math.floor(value)) or "-"
@@ -30,7 +48,7 @@ function M.rate_limit_text(rate_limits, with_reset)
 end
 
 -- Statusline: cached per Claude terminal buffer, refreshed on a timer so lualine never touches the disk
-local cache = {} -- buf -> { text = string, waiting = boolean }
+local cache = {} -- buf -> { text = string, waiting = boolean, profile? = string }
 local timer
 
 local function terminal_text(session, limits)
@@ -57,11 +75,16 @@ end
 
 local function refresh()
 	local all = sessions.all()
-	local limits = M.rate_limit_text(sessions.rate_limits(all), false)
 	local fresh = {}
 	for _, term in ipairs(terminals.live()) do
 		local session = sessions.by_term(all, term.term_id)
-		fresh[term.buf] = { text = terminal_text(session, limits), waiting = session and session.state == "waiting" }
+		local profile = session and session.profile
+		local limits = M.rate_limit_text(sessions.rate_limits(all, profile), false)
+		fresh[term.buf] = {
+			text = terminal_text(session, limits),
+			waiting = session and session.state == "waiting",
+			profile = profile,
+		}
 	end
 	cache = fresh
 end
@@ -93,6 +116,17 @@ end
 function M.statusline_color()
 	local entry = window_entry()
 	return entry and entry.waiting and { fg = "#FFB86C" } or nil
+end
+
+--- Profile badge of the Claude in this window, or nil for ~/.claude
+function M.profile()
+	local entry = window_entry()
+	return entry and entry.profile
+end
+
+function M.profile_badge_color()
+	local profile = M.profile()
+	return profile and { fg = M.profile_color(profile), gui = "bold" } or nil
 end
 
 return M

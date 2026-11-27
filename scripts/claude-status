@@ -23,8 +23,9 @@ write_meta() {
 	local started
 	started=$(jq -r '.started // empty' "$base.meta.json" 2>/dev/null)
 	write "$base.meta.json" "$(jq -c --arg nvim "${NVIM:-}" --arg term "${NVIM_CLAUDE_TERM:-}" \
+		--arg config_dir "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
 		--argjson started "${started:-$(date +%s)}" \
-		'{session_id, cwd, nvim: $nvim, term: $term, started: $started}' <<<"$input")"
+		'{session_id, cwd, nvim: $nvim, term: $term, config_dir: $config_dir, started: $started}' <<<"$input")"
 }
 
 # Session name for the info sidebar: the /rename title, else the title Claude generated for the session
@@ -79,7 +80,8 @@ statusline)
 		cost: .cost.total_cost_usd,
 		rate_limits
 	}' <<<"$input")"
-	[ -f "$base.meta.json" ] || write_meta
+	# Also fills in config_dir for sessions whose meta was written before it was recorded
+	jq -e '.config_dir' "$base.meta.json" >/dev/null 2>&1 || write_meta
 	jq -r '[
 		.model.display_name,
 		(.context_window.used_percentage // empty | "ctx \(floor)%"),

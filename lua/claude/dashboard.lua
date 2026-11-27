@@ -55,14 +55,18 @@ local function session_node(session, live_buf, running)
 			details = { { { (loop.prompt or ""):gsub("\n", " "), "String" } } },
 		})
 	end
+	local line = {
+		{ marker, "DiagnosticOk" },
+		{ (status.STATE_ICONS[session.state] or " ") .. " ", STATE_HL[session.state] },
+		{ session.title or vim.fn.fnamemodify(dir, ":t"), "Bold" },
+	}
+	if session.profile then
+		table.insert(line, { " " .. session.profile, status.profile_hl(session.profile) })
+	end
 	return {
 		target = live_buf
 			or running and { term_id = session.term, session_id = session.session_id, cwd = running.cwd, launch = running.launch },
-		line = {
-			{ marker, "DiagnosticOk" },
-			{ (status.STATE_ICONS[session.state] or " ") .. " ", STATE_HL[session.state] },
-			{ session.title or vim.fn.fnamemodify(dir, ":t"), "Bold" },
-		},
+		line = line,
 		details = {
 			{ { #dir > 34 and ("…" .. dir:sub(-33)) or dir, "Directory" } },
 			{ { ("%s · ctx %s · %s · %s"):format(
@@ -89,6 +93,35 @@ local function group_nodes(members, live_bufs, running)
 	return nodes
 end
 
+local function add_limits(rows, all, profile, indent)
+	local limits = status.rate_limit_text(sessions.rate_limits(all, profile), true)
+	for limit in vim.gsplit(limits or "no limits data yet", " · ", { plain = true }) do
+		table.insert(rows, { { indent .. limit } })
+	end
+end
+
+-- Limits are per account, so one block per profile once sessions use more than one config dir
+local function add_all_limits(rows, all)
+	local keys, seen = {}, {}
+	for _, session in ipairs(all) do
+		local key = session.profile or ""
+		if not seen[key] then
+			seen[key] = true
+			table.insert(keys, key)
+		end
+	end
+	table.sort(keys) -- "" (~/.claude) first
+	if #keys <= 1 then
+		add_limits(rows, all, keys[1] ~= "" and keys[1] or nil, " ")
+		return
+	end
+	for _, key in ipairs(keys) do
+		local profile = key ~= "" and key or nil
+		table.insert(rows, { { " " .. (profile or "claude"), profile and status.profile_hl(profile) or "Bold" } })
+		add_limits(rows, all, profile, "   ")
+	end
+end
+
 local function build(width)
 	local all = sessions.all()
 	local live_bufs = {}
@@ -111,10 +144,7 @@ local function build(width)
 		{ { " <CR> show · n new · p command · q close", "Comment" } },
 		{},
 	}
-	local limits = status.rate_limit_text(sessions.rate_limits(all), true)
-	for limit in vim.gsplit(limits or "no limits data yet", " · ", { plain = true }) do
-		table.insert(rows, { { " " .. limit } })
-	end
+	add_all_limits(rows, all)
 	table.insert(rows, {
 		{ (" %d sessions · "):format(#all) },
 		{ ("%d working"):format(counts.working), STATE_HL.working },

@@ -50,6 +50,16 @@ local function active_loops(loops)
 	end, loops)
 end
 
+-- Short name of a config dir: "~/.claude_mts" -> "mts"; the default ~/.claude, and sessions
+-- recorded before config_dir was, have none
+local function profile_of(config_dir)
+	if not config_dir then
+		return nil
+	end
+	local name = vim.fn.fnamemodify((config_dir:gsub("/+$", "")), ":t"):gsub("^%.?claude[-_.]?", "")
+	return name ~= "" and name or nil
+end
+
 local function load(session_id)
 	local base = M.dir .. "/" .. session_id
 	local meta = read_json(base .. ".meta.json") or {}
@@ -64,6 +74,7 @@ local function load(session_id)
 		cwd = meta.cwd,
 		nvim = meta.nvim,
 		term = meta.term,
+		profile = profile_of(meta.config_dir),
 		state = state,
 		model = status.model,
 		context = status.context,
@@ -101,11 +112,16 @@ function M.all()
 	return sessions
 end
 
---- Rate limits are account-wide: take the ones its status line reported last
-function M.rate_limits(sessions)
+--- Rate limits are account-wide, and each config dir has its own account:
+--- take the ones the profile's sessions reported last
+function M.rate_limits(sessions, profile)
 	local latest
 	for _, session in ipairs(sessions) do
-		if session.rate_limits and (not latest or session.reported > latest.reported) then
+		if
+			session.profile == profile
+			and session.rate_limits
+			and (not latest or session.reported > latest.reported)
+		then
 			latest = session
 		end
 	end
